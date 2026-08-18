@@ -4,10 +4,9 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function apiGet<T>(path: string): Promise<T> {
   const token = useAuthStore.getState().getBearerToken();
-  const res = await fetch(`${BASE_URL}/api${path}`, {
+  const res = await fetch(`${BASE_URL}/api?path=${encodeURIComponent(path)}`, {
     headers: {
       'Content-Type': 'application/json',
-      'x-lang': 'es',
       ...(token ? { 'x-laliga-token': token } : {}),
     },
   });

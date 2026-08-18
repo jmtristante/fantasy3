@@ -4,7 +4,6 @@ import https from 'https';
 const FANTASY_API = 'https://fantasy-api.llt-services.com';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -13,9 +12,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // req.url contains the full path after /api/
-    const apiPath = req.url || '/';
-    const targetUrl = `${FANTASY_API}${apiPath}`;
+    // Get path from query param ?path=/v1/competition/1/players
+    const path = (req.query.path as string) || '/';
+    const targetUrl = `${FANTASY_API}${path}`;
     const urlObj = new URL(targetUrl);
 
     const headers: Record<string, string> = {
@@ -43,21 +42,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         headers,
       }, (proxyRes) => {
         let data = '';
-        proxyRes.on('data', (chunk) => data += chunk);
+        proxyRes.on('data', (chunk: Buffer) => data += chunk.toString());
         proxyRes.on('end', () => resolve(data));
-
-        // Set CORS and forward status
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.writeHead(proxyRes.statusCode || 500, {
           'Content-Type': proxyRes.headers['content-type'] || 'application/json',
         });
       });
-
       proxyReq.on('error', reject);
-
-      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
-        proxyReq.write(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-      }
       proxyReq.end();
     });
 
