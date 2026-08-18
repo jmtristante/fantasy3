@@ -1,45 +1,72 @@
 import { Card } from '@heroui/react';
-import { ShoppingCart, Shield, TrendingUp, Euro, UserPlus } from 'lucide-react';
+import { ShoppingCart, Shield, TrendingUp, Euro, UserPlus, Calendar } from 'lucide-react';
 
-const ACTIVITY_ICONS: Record<number, any> = {
-  1: ShoppingCart,
-  31: ShoppingCart,
-  32: Shield,
-  33: TrendingUp,
-  6: Euro,
-  9: UserPlus,
+const ICONS: Record<number, React.ElementType> = {
+  1: ShoppingCart, 31: ShoppingCart, 32: Shield, 33: TrendingUp, 6: Euro, 9: UserPlus, 4: Shield, 7: Calendar,
 };
 
-const ACTIVITY_VERBS: Record<number, string> = {
-  1: 'compró',
-  31: 'fichó',
-  32: 'clausuló',
-  33: 'vendió',
-  6: 'ganó',
-  9: 'se unió a la liga',
+const VERBS: Record<number, string> = {
+  1: 'compró', 31: 'fichó', 32: 'clausuló', 33: 'vendió', 6: 'ganó', 9: 'se unió a la liga', 4: 'blindó', 7: 'alineó',
+};
+
+const TYPE_COLORS: Record<number, string> = {
+  1: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  31: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  32: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  33: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  6: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  9: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  4: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  7: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
 };
 
 function formatMoney(v: number) {
   return new Intl.NumberFormat('es-ES').format(v) + '€';
 }
 
-function resolvePlayerName(item: any, players: Map<string, any>): string {
-  // 1. Embedded player object
-  if (item.playerMaster && typeof item.playerMaster === 'object') {
-    return item.playerMaster.nickname || item.playerMaster.name || '';
-  }
-  if (item.player && typeof item.player === 'object') {
-    return item.player.nickname || item.player.name || '';
-  }
-  // 2. playerName string
+function formatDate(d: string | Date) {
+  const date = new Date(d);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffH = Math.floor(diffMs / 3600000);
+  const diffD = Math.floor(diffMs / 86400000);
+  if (diffMin < 1) return 'ahora';
+  if (diffMin < 60) return `hace ${diffMin}m`;
+  if (diffH < 24) return `hace ${diffH}h`;
+  if (diffD < 7) return `hace ${diffD}d`;
+  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
+
+function resolveName(item: any, cache: Map<string, string>): string {
+  return item.user1Name || cache.get(String(item.user1Id)) || 'Alguien';
+}
+
+function resolveSellerName(item: any, cache: Map<string, string>): string | null {
+  if (!item.user2Id) return null;
+  return item.user2Name || cache.get(String(item.user2Id)) || null;
+}
+
+function resolvePlayer(item: any, players: Map<string, any>): string {
+  const embedded = item.playerMaster || item.player;
+  if (embedded?.nickname || embedded?.name) return embedded.nickname || embedded.name;
   if (item.playerName) return item.playerName;
-  // 3. Lookup by playerMasterId
+  const id = item.playerMasterId ?? item.playerId;
+  if (id != null) { const p = players.get(String(id)); if (p) return p.nickname || p.name || ''; }
+  return '';
+}
+
+function resolvePlayerImage(item: any, players: Map<string, any>): string | null {
+  const embedded = item.playerMaster || item.player;
+  if (embedded?.images?.transparent?.['256x256']) return embedded.images.transparent['256x256'];
+  if (embedded?.image) return embedded.image;
   const id = item.playerMasterId ?? item.playerId;
   if (id != null) {
     const p = players.get(String(id));
-    if (p) return p.nickname || p.name || '';
+    if (p?.images?.transparent?.['256x256']) return p.images.transparent['256x256'];
+    if (p?.image) return p.image;
   }
-  return '';
+  return null;
 }
 
 interface RecentActivityProps {
@@ -49,32 +76,58 @@ interface RecentActivityProps {
 }
 
 export default function RecentActivity({ data, managers, players }: RecentActivityProps) {
+  const items = data.slice(0, 10);
+
   return (
     <Card>
       <Card.Header>
         <Card.Title>Actividad reciente</Card.Title>
       </Card.Header>
-      <Card.Content>
-        {data.length === 0 ? (
-          <p className="text-muted text-sm">Sin actividad reciente</p>
+      <Card.Content className="p-0">
+        {items.length === 0 ? (
+          <p className="text-muted text-sm p-4">Sin actividad reciente</p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {data.slice(0, 15).map((a: any, i: number) => {
-              const Icon = ACTIVITY_ICONS[a.activityTypeId] || ShoppingCart;
-              const verb = ACTIVITY_VERBS[a.activityTypeId] || 'realizó una acción';
-              const userName = a.user1Name || managers.get(String(a.user1Id)) || 'Alguien';
-              const playerName = resolvePlayerName(a, players);
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {items.map((a: any, i: number) => {
+              const Icon = ICONS[a.activityTypeId] || ShoppingCart;
+              const verb = VERBS[a.activityTypeId] || 'realizó una acción';
+              const userName = resolveName(a, managers);
+              const sellerName = resolveSellerName(a, managers);
+              const playerName = resolvePlayer(a, players);
+              const playerImg = resolvePlayerImage(a, players);
+              const typeColor = TYPE_COLORS[a.activityTypeId] || 'bg-gray-100 text-gray-600';
+
               return (
-                <div key={i} className="flex items-center gap-3 text-sm">
-                  <div className="p-1.5 rounded-full bg-default-100">
-                    <Icon className="w-3.5 h-3.5" />
+                <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <div className={`p-2 rounded-full flex-shrink-0 ${typeColor}`}>
+                    <Icon className="w-4 h-4" />
                   </div>
+
+                  {playerImg ? (
+                    <img src={playerImg} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-white dark:border-gray-800 shadow-sm" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-medium text-gray-500">{playerName ? playerName.charAt(0).toUpperCase() : '?'}</span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium">{userName}</span>{' '}
-                    <span className="text-muted">{verb}</span>{' '}
-                    {playerName && <span className="font-medium">{playerName}</span>}
-                    {a.amount ? <span className="text-muted"> por {formatMoney(a.amount)}</span> : null}
+                    <div className="text-sm leading-snug">
+                      <span className="font-semibold text-gray-900 dark:text-white">{userName}</span>{' '}
+                      <span className="text-gray-500 dark:text-gray-400">{verb}</span>{' '}
+                      {playerName && <span className="font-semibold text-gray-900 dark:text-white">{playerName}</span>}
+                      {sellerName && <span className="text-gray-500 dark:text-gray-400"> a <span className="font-medium text-gray-700 dark:text-gray-300">{sellerName}</span></span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(a.createdAt || a.timestamp)}</span>
+                    </div>
                   </div>
+
+                  {a.amount ? (
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white flex-shrink-0 tabular-nums">
+                      {formatMoney(a.amount)}
+                    </span>
+                  ) : null}
                 </div>
               );
             })}

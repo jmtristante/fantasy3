@@ -8,7 +8,7 @@ export async function apiGet<T>(path: string): Promise<T> {
     headers: {
       'Content-Type': 'application/json',
       'x-lang': 'es',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -18,8 +18,12 @@ export async function apiGet<T>(path: string): Promise<T> {
 export const fantasyAPI = {
   getLeagues: () => apiGet<any>('/v1/competition/1/leagues?x-lang=es'),
   getLeagueRanking: (leagueId: string) => apiGet<any>(`/v1/competition/1/leagues/${leagueId}/standing?x-lang=es`),
+  getLeagueActivity: (leagueId: string, page: number = 0) => apiGet<any>(`/v1/competition/1/leagues/${leagueId}/activity/${page}?x-lang=es`),
   getTeamData: (leagueId: string, teamId: string) => apiGet<any>(`/v1/competition/1/leagues/${leagueId}/teams/${teamId}?x-lang=es`),
   getTeamMoney: (teamId: string) => apiGet<any>(`/v1/competition/1/teams/${teamId}/money?x-lang=es`),
+  getMatchday: (week: number) => apiGet<any>(`/v1/competition/1/calendar?weekNumber=${week}&x-lang=es`),
+  getCurrentWeek: () => apiGet<any>('/v1/competition/1/week/current?x-lang=es'),
+  getTeamsMaster: () => apiGet<any>('/v3/teams-master?x-lang=es'),
   getAllPlayers: () => apiGet<any>('/v1/competition/1/players?x-lang=es'),
   getCurrentUser: () => apiGet<any>('/v4/user/me?x-lang=es'),
 };

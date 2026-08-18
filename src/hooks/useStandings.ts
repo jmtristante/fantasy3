@@ -24,10 +24,38 @@ export function useStandings() {
 
 export function useCurrentUser(standings: any[]) {
   const laligaUser = useAuthStore((s) => s.laligaUser);
-  if (!standings?.length || !laligaUser?.userId) return null;
+  const laligaTokens = useAuthStore((s) => s.laligaTokens);
 
-  return standings.find((s: any) => {
-    const uid = String(s.userId || s.team?.userId || s.team?.manager?.id || '');
-    return uid === laligaUser.userId;
-  }) || null;
+  if (!standings?.length) return null;
+
+  // Debug: log what we have
+  console.log('[useCurrentUser] laligaUser:', laligaUser);
+  console.log('[useCurrentUser] standings userIds:', standings.map((s: any) => s.userId || s.team?.userId || s.team?.manager?.id));
+
+  // Try matching by laligaUser.userId first
+  if (laligaUser?.userId) {
+    const found = standings.find((s: any) => {
+      const uid = String(s.userId || s.team?.userId || s.team?.manager?.id || '');
+      return uid === laligaUser.userId;
+    });
+    if (found) return found;
+  }
+
+  // Fallback: try to find by decoding the id_token
+  if (laligaTokens?.id_token) {
+    try {
+      const payload = JSON.parse(atob(laligaTokens.id_token.split('.')[1]));
+      const sub = payload.sub || payload.oid;
+      console.log('[useCurrentUser] id_token sub:', sub);
+      if (sub) {
+        const found = standings.find((s: any) => {
+          const uid = String(s.userId || s.team?.userId || s.team?.manager?.id || '');
+          return uid === sub;
+        });
+        if (found) return found;
+      }
+    } catch {}
+  }
+
+  return null;
 }

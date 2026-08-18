@@ -7,6 +7,7 @@ import { useStandings, useCurrentUser } from '../hooks/useStandings';
 import StatsCards from '../components/Dashboard/StatsCards';
 import LeagueStandings from '../components/Dashboard/LeagueStandings';
 import RecentActivity from '../components/Dashboard/RecentActivity';
+import UpcomingMatches from '../components/Dashboard/UpcomingMatches';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
@@ -34,7 +35,6 @@ export default function Dashboard() {
 
   const teamId = currentUser?.teamId || currentUser?.team?.id;
 
-  // Fetch team money from API
   const { data: teamMoney } = useQuery({
     queryKey: ['teamMoney', teamId],
     queryFn: () => fantasyAPI.getTeamMoney(String(teamId)),
@@ -48,7 +48,6 @@ export default function Dashboard() {
     return data?.teamMoney ?? data?.money ?? data?.amount ?? 0;
   }, [teamMoney]);
 
-  // Build manager name lookup from standings
   const managers = useMemo(() => {
     const map = new Map<string, string>();
     extractArray(standings).forEach((s: any) => {
@@ -59,32 +58,18 @@ export default function Dashboard() {
     return map;
   }, [standings]);
 
-  // Fetch activity + allPlayers
   useEffect(() => {
     if (!leagueId) return;
     setLoadingActivity(true);
 
     const fetchData = async () => {
       try {
-        const token = useAuthStore.getState().getBearerToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'x-lang': 'es',
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
         const [activityRes, playersRes] = await Promise.all([
-          fetch(
-            `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005/api'}/v1/competition/1/leagues/${leagueId}/activity/0?x-lang=es`,
-            { headers }
-          ),
+          fantasyAPI.getLeagueActivity(leagueId),
           fantasyAPI.getAllPlayers(),
         ]);
 
-        if (activityRes.ok) {
-          const data = await activityRes.json();
-          setActivity(extractArray(data));
-        }
+        setActivity(extractArray(activityRes));
 
         const players = extractPlayers(playersRes);
         const map = new Map<string, any>();
@@ -110,30 +95,26 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{leagueName || 'Dashboard'}</h1>
-          <p className="text-muted">Gestiona tu equipo de Fantasy</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          {leagueName || 'Dashboard'}
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona tu equipo de Fantasy</p>
       </div>
 
-      <StatsCards
-        position={position}
-        points={points}
-        teamValue={teamValue}
-        cash={cash}
-      />
+      <StatsCards position={position} points={points} teamValue={teamValue} cash={cash} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           {loadingActivity ? (
-            <div className="flex justify-center py-8"><Spinner /></div>
+            <div className="card flex justify-center py-8"><Spinner /></div>
           ) : (
             <RecentActivity data={activity} managers={managers} players={allPlayers} />
           )}
         </div>
-        <div>
+        <div className="space-y-6">
           <LeagueStandings data={standings} />
+          <UpcomingMatches />
         </div>
       </div>
     </div>

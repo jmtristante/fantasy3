@@ -45,7 +45,7 @@ async function fetchLaligaProfile(token: string): Promise<LaLigaUser | null> {
         headers: {
           'Content-Type': 'application/json',
           'x-lang': 'es',
-          'x-laliga-token': token,
+          'Authorization': `Bearer ${token}`,
         },
       }
     );

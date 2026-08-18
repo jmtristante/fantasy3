@@ -1,2 +1,106 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+
+/*
+ * Guía de Estilo Fantasy App
+ * ==========================
+ * Paleta:
+ *   Primary: Indigo (#4F46E5) — acentos, botones principales, links
+ *   Secondary: Slate (#64748B) — texto secundario, bordes
+ *   Success: Emerald (#10B981) — positivo, disponible, ganancias
+ *   Warning: Amber (#F59E0B) — alertas, cláusulas
+ *   Danger: Rose (#F43F5E) — negativo, ventas, errores
+ *
+ * Componentes:
+ *   Cards: fondo blanco/slate-900, bordes sutiles, sombra-md, rounded-xl
+ *   Botones: primary (indigo), secondary (slate), danger (rose)
+ *   Inputs: bordes redondeados, focus ring indigo
+ *   Badges: pills compactos con colores semánticos
+ *   Sidebar: fondo slate-950, links activos con indigo
+ *
+ * Tipografía:
+ *   Headings: font-bold text-gray-900 dark:text-white
+ *   Body: text-sm text-gray-600 dark:text-gray-400
+ *   Labels: text-xs font-medium uppercase tracking-wider text-gray-500
+ */
+
+@layer base {
+  :root {
+    --color-primary: #4F46E5;
+    --color-primary-light: #818CF8;
+    --color-primary-dark: #3730A3;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-gray-950 text-gray-100;
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    @apply w-64 border-r flex flex-col transition-colors duration-200;
+  }
+
+  .dark .sidebar {
+    @apply bg-gray-950 border-gray-800;
+  }
+
+  .sidebar:not(.dark) {
+    @apply bg-white border-gray-200;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150;
+  }
+
+  .sidebar-link-active {
+    @apply font-medium;
+  }
+
+  .dark .sidebar-link-active {
+    @apply bg-indigo-500/10 text-indigo-400;
+  }
+
+  .sidebar:not(.dark) .sidebar-link-active {
+    @apply bg-indigo-50 text-indigo-600;
+  }
+
+  .sidebar-link-inactive {
+    @apply text-gray-500 hover:bg-gray-100 hover:text-gray-900;
+  }
+
+  .dark .sidebar-link-inactive {
+    @apply text-gray-400 hover:bg-white/5 hover:text-gray-200;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply bg-white rounded-xl border border-gray-200 p-4 dark:bg-gray-900 dark:border-gray-800;
+  }
+
+  /* Filter select */
+  .filter-select {
+    @apply px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white text-gray-700
+           dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300
+           focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer;
+  }
+
+  /* Activity row */
+  .activity-row {
+    @apply flex items-center gap-3 px-4 py-3 transition-colors duration-150;
+  }
+
+  .activity-row:hover {
+    @apply bg-gray-50 dark:bg-gray-800/50;
+  }
+}
