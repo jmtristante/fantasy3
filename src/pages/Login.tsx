@@ -55,7 +55,7 @@ export default function Login() {
               />
             </div>
             {error && <p className="text-danger text-sm">{error}</p>}
-            <Button type="submit" variant="primary" isLoading={loading}>
+            <Button type="submit" variant="primary" isPending={loading}>
               Iniciar sesión
             </Button>
           </form>

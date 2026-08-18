@@ -64,7 +64,7 @@ export default function LaLigaAuth() {
               />
             </div>
             {tokenError && <p className="text-danger text-sm">{tokenError}</p>}
-            <Button variant="primary" onPress={handleToken} isLoading={loading} isDisabled={!tokenJson.trim()}>
+            <Button variant="primary" onPress={handleToken} isPending={loading} isDisabled={!tokenJson.trim()}>
               Conectar LaLiga
             </Button>
           </div>
