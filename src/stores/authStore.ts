@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { saveLaLigaSession, loadLaLigaSession } from '../services/laligaSession';
+import { saveLaLigaSession, loadLaLigaSession, deleteLaLigaSession } from '../services/laligaSession';
 
 interface LaLigaUser {
   userId: string;

@@ -55,14 +55,16 @@ export default function LaLigaAuth() {
               <p>2. Abre DevTools (F12) → Network → filtra por "token"</p>
               <p>3. Copia la respuesta JSON del request token</p>
             </div>
-            <Input
-              label="Pega el JSON del token"
-              placeholder='{"access_token": "...", "refresh_token": "..."}'
-              value={tokenJson}
-              onChange={(e) => setTokenJson(e.target.value)}
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">JSON del token</label>
+              <Input
+                placeholder='{"access_token": "...", "refresh_token": "..."}'
+                value={tokenJson}
+                onChange={(e) => setTokenJson(e.target.value)}
+              />
+            </div>
             {tokenError && <p className="text-danger text-sm">{tokenError}</p>}
-            <Button color="primary" onPress={handleToken} isLoading={loading} isDisabled={!tokenJson.trim()}>
+            <Button variant="primary" onPress={handleToken} isLoading={loading} isDisabled={!tokenJson.trim()}>
               Conectar LaLiga
             </Button>
           </div>

@@ -67,7 +67,7 @@ export default function LeagueSelector() {
               leagues.map((league) => (
                 <Button
                   key={league.id}
-                  variant="flat"
+                  variant="secondary"
                   className="justify-start"
                   onPress={() => handleSelect(league)}
                 >

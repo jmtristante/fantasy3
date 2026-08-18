@@ -1,17 +1,7 @@
 import { Card } from '@heroui/react';
 import { useAuthStore } from '../../stores/authStore';
 
-interface Standing {
-  position?: number;
-  name?: string;
-  manager?: string;
-  team?: { name?: string; manager?: { managerName?: string } };
-  points?: number;
-  teamValue?: number;
-  userId?: string;
-}
-
-function extractArray(res: any): Standing[] {
+function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
   if (res?.data && Array.isArray(res.data)) return res.data;
   if (res?.data?.elements && Array.isArray(res.data.elements)) return res.data.elements;
@@ -20,7 +10,7 @@ function extractArray(res: any): Standing[] {
 
 export default function LeagueStandings({ data }: { data: any }) {
   const standings = extractArray(data);
-  const user = useAuthStore((s) => s.user);
+  const laligaUser = useAuthStore((s) => s.laligaUser);
 
   return (
     <Card>
@@ -38,11 +28,11 @@ export default function LeagueStandings({ data }: { data: any }) {
               </tr>
             </thead>
             <tbody>
-              {standings.map((s, i) => {
+              {standings.map((s: any, i: number) => {
                 const pos = s.position || i + 1;
                 const name = s.manager || s.team?.manager?.managerName || s.name || '?';
-                const uid = s.userId || s.team?.userId || s.team?.manager?.id;
-                const isMe = uid && user?.id && uid.toString() === user.id;
+                const uid = String(s.userId || s.team?.userId || s.team?.manager?.id || '');
+                const isMe = laligaUser?.userId && uid === laligaUser.userId;
                 return (
                   <tr key={uid || i} className={`border-b border-divider ${isMe ? 'bg-primary-50' : ''}`}>
                     <td className={`p-2 ${pos <= 3 ? 'font-bold text-warning' : ''}`}>{pos}</td>

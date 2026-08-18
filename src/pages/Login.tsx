@@ -34,24 +34,28 @@ export default function Login() {
         </Card.Header>
         <Card.Content>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <Input
-              type="email"
-              label="Email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              type="password"
-              label="Contraseña"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">Contraseña</label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
             {error && <p className="text-danger text-sm">{error}</p>}
-            <Button type="submit" color="primary" isLoading={loading}>
+            <Button type="submit" variant="primary" isLoading={loading}>
               Iniciar sesión
             </Button>
           </form>

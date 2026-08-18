@@ -26,7 +26,7 @@ export default function Dashboard() {
   const leagueId = useAuthStore((s) => s.leagueId);
   const leagueName = useAuthStore((s) => s.leagueName);
   const { data: standings, isLoading: loadingStandings } = useStandings();
-  const currentUser = useCurrentUser(standings);
+  const currentUser = useCurrentUser(standings || []);
 
   const [activity, setActivity] = React.useState<any[]>([]);
   const [loadingActivity, setLoadingActivity] = React.useState(true);

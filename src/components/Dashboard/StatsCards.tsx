@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Card } from '@heroui/react';
 import { Trophy, TrendingUp, Wallet, Star } from 'lucide-react';
 
