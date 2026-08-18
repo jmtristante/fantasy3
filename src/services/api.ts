@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/authStore';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://fantasy2-api.onrender.com';
 
 export async function apiGet<T>(path: string): Promise<T> {
   const token = useAuthStore.getState().getBearerToken();
