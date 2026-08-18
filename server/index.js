@@ -535,10 +535,6 @@ const buildApp = (config) => {
 
   app.use(corsMiddleware);
 
-  app.options('*', (req, res) => {
-    res.sendStatus(204);
-  });
-
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
