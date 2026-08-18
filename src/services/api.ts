@@ -4,10 +4,11 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://fantasy2-api.onre
 
 export async function apiGet<T>(path: string): Promise<T> {
   const token = useAuthStore.getState().getBearerToken();
-  const res = await fetch(`${BASE_URL}/api?path=${encodeURIComponent(path)}`, {
+  const res = await fetch(`${BASE_URL}/api${path}`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { 'x-laliga-token': token } : {}),
+      'x-lang': 'es',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
