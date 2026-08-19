@@ -14,6 +14,7 @@ import LeagueSelector from './pages/LeagueSelector';
 import Dashboard from './pages/Dashboard';
 import Activity from './pages/Activity';
 import Market from './pages/Market';
+import Clauses from './pages/Clauses';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/activity" element={<Activity />} />
               <Route path="/market" element={<Market />} />
+              <Route path="/clauses" element={<Clauses />} />
             </Route>
           </Routes>
           </BrowserRouter>
