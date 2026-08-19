@@ -21,6 +21,8 @@ export default function Login() {
     if (result.error) {
       setError(result.error);
     } else {
+      // Re-initialize to load LaLiga session from Supabase
+      await useAuthStore.getState().initFromStorage();
       navigate('/');
     }
   };

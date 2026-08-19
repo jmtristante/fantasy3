@@ -48,7 +48,7 @@
 
   /* Sidebar */
   .sidebar {
-    @apply w-64 border-r flex flex-col transition-colors duration-200;
+    @apply w-64 border-r flex flex-col sticky top-0 h-screen overflow-y-auto transition-colors duration-200;
   }
 
   .dark .sidebar {

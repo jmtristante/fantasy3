@@ -104,8 +104,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initFromStorage: async () => {
+        console.log('[Auth] initFromStorage started');
         // Restore Supabase session
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Auth] Supabase session:', session ? 'found' : 'none');
         if (session) {
           set({
             user: session.user,
@@ -115,20 +117,28 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Restore LaLiga session from Supabase
-        const laligaSession = await loadLaLigaSession();
-        if (laligaSession) {
-          const expiresOn = laligaSession.expires_on || Math.floor(Date.now() / 1000) + 3600;
-          // Check if expired
-          if (expiresOn > Date.now() / 1000) {
-            const laligaUser = laligaSession.laliga_user_id
-              ? { userId: laligaSession.laliga_user_id, username: laligaSession.laliga_username || '', name: laligaSession.laliga_username || '' }
-              : await fetchLaligaProfile(laligaSession.access_token);
-            set({
-              laligaTokens: { ...laligaSession, expires_on: expiresOn },
-              laligaAuthenticated: true,
-              laligaUser,
-            });
+        try {
+          const laligaSession = await loadLaLigaSession();
+          console.log('[Auth] loadLaLigaSession result:', laligaSession);
+          if (laligaSession) {
+            const expiresOn = laligaSession.expires_on || Math.floor(Date.now() / 1000) + 3600;
+            if (expiresOn > Date.now() / 1000) {
+              const laligaUser = laligaSession.laliga_user_id
+                ? { userId: laligaSession.laliga_user_id, username: laligaSession.laliga_username || '', name: laligaSession.laliga_username || '' }
+                : await fetchLaligaProfile(laligaSession.access_token);
+              set({
+                laligaTokens: { ...laligaSession, expires_on: expiresOn },
+                laligaAuthenticated: true,
+                laligaUser,
+              });
+            } else {
+              console.log('[Auth] LaLiga session expired');
+            }
+          } else {
+            console.log('[Auth] No LaLiga session found in Supabase');
           }
+        } catch (e) {
+          console.error('[Auth] Error loading LaLiga session:', e);
         }
       },
 
