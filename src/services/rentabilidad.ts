@@ -44,6 +44,7 @@ async function silentGet(path) {
     base = `${protocol}//${host}:${port}/api`;
   } else {
     base = (import.meta.env.VITE_API_BASE_URL || `${window.location.origin}/api`).replace(/\/$/, '');
+    if (!base.endsWith('/api')) base = `${base}/api`;
   }
   const url = `${base}${path}`;
   const controller = new AbortController();
