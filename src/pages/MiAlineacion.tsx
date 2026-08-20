@@ -52,7 +52,7 @@ function isPlayerInLineup(lineup: LineupState, ptId: number): boolean {
 
 export default function MiAlineacion() {
   const leagueId = useAuthStore((s) => s.leagueId);
-  const user = useAuthStore((s) => s.user);
+  const laligaUser = useAuthStore((s) => s.laligaUser);
   const queryClient = useQueryClient();
 
   const [lineup, setLineup] = useState<LineupState>(EMPTY_LINEUP);
@@ -74,14 +74,14 @@ export default function MiAlineacion() {
   });
 
   const userTeamId = useMemo(() => {
-    if (!standings || !user) return null;
+    if (!standings || !laligaUser) return null;
     const teams = extractArray(standings);
     const found = teams.find((t: any) => {
       const uid = t.userId || t.team?.manager?.id || t.team?.userId;
-      return uid && user.id && String(uid) === String(user.id);
+      return uid && laligaUser.userId && String(uid) === String(laligaUser.userId);
     });
     return found ? String(found.id || found.team?.id) : null;
-  }, [standings, user]);
+  }, [standings, laligaUser]);
 
   const { data: currentLineupData, isLoading: loadingLineup } = useQuery({
     queryKey: ['currentLineup', userTeamId],
