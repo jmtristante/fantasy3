@@ -16,6 +16,7 @@ import Activity from './pages/Activity';
 import Market from './pages/Market';
 import Clauses from './pages/Clauses';
 import Rentabilidad from './pages/Rentabilidad';
+import Clasificacion from './pages/Clasificacion';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +75,7 @@ function App() {
               <Route path="/market" element={<Market />} />
               <Route path="/clauses" element={<Clauses />} />
               <Route path="/rentabilidad" element={<Rentabilidad />} />
+              <Route path="/standings" element={<Clasificacion />} />
             </Route>
           </Routes>
           </BrowserRouter>

@@ -43,5 +43,7 @@ export const fantasyAPI = {
   getTeamsMaster: () => apiGet<any>('/v3/teams-master?x-lang=es'),
   getAllPlayers: () => apiGet<any>('/v1/competition/1/players?x-lang=es'),
   getPlayerDetails: (playerId: string, leagueId: string) => apiGet<any>(`/v1/competition/1/player/${playerId}/league/${leagueId}?x-lang=es`),
+  getLeagueRankingByWeek: (leagueId: string, week: number) => apiGet<any>(`/v1/competition/1/leagues/${leagueId}/standing/${week}?x-lang=es`),
+  getTeamLineup: (teamId: string, week: number) => apiGet<any>(`/v1/competition/1/teams/${teamId}/lineup/week/${week}?x-lang=es`),
   getCurrentUser: () => apiGet<any>('/v4/user/me?x-lang=es'),
 };
