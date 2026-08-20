@@ -225,23 +225,25 @@ export default function MiAlineacion() {
 
   const renderSlot = (player: any | null, position: string, index?: number) => {
     const pm = player?.playerMaster || player;
-    const img = pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'];
+    const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
     const name = pm?.nickname || pm?.name;
     const isEmpty = !player;
 
     return (
-      <button
+      <div
         key={index ?? position}
-        onClick={() => {
-          if (isEmpty) setSelectedSlot({ position, index });
-          else {
-            setSelectedPlayer({ id: pm.id, player_master_id: pm.id, name: pm.name, nickname: pm.nickname, images: pm.images });
-            setIsPlayerModalOpen(true);
-          }
-        }}
         className={`relative flex flex-col items-center gap-1 group ${isEmpty ? 'opacity-60' : ''}`}
       >
-        <div className="relative">
+        <div
+          className="relative cursor-pointer"
+          onClick={() => {
+            if (isEmpty) setSelectedSlot({ position, index });
+            else {
+              setSelectedPlayer({ id: pm.id, player_master_id: pm.id, name: pm.name, nickname: pm.nickname, images: pm.images });
+              setIsPlayerModalOpen(true);
+            }
+          }}
+        >
           {img ? (
             <img src={img} alt="" className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -260,7 +262,7 @@ export default function MiAlineacion() {
         <span className="text-[10px] font-semibold text-white drop-shadow text-center leading-tight max-w-[72px] truncate">
           {name || 'Vacío'}
         </span>
-      </button>
+      </div>
     );
   };
 
@@ -355,7 +357,7 @@ export default function MiAlineacion() {
                     if (!pm) return null;
                     const ptId = pt.playerTeamId || pt.id;
                     const inLineup = isPlayerInLineup(lineup, ptId);
-                    const img = pm.images?.transparent?.['64x64'] || pm.images?.transparent?.['128x128'];
+                    const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
                     return (
                       <button key={ptId}
                         onClick={() => {
@@ -409,7 +411,7 @@ export default function MiAlineacion() {
                 .map((pt: any) => {
                   const ptId = pt.playerTeamId || pt.id;
                   const pm = pt.playerMaster;
-                  const img = pm?.images?.transparent?.['64x64'];
+                  const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
                   const inLineup = isPlayerInLineup(lineup, ptId);
                   return (
                     <button key={ptId} disabled={inLineup}
