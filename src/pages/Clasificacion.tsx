@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Trophy, ChevronDown, ChevronUp, Users, Shirt } from 'lucide-react';
+import { Trophy, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
+import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
@@ -28,14 +29,16 @@ const POSITION_COLORS: Record<number, string> = {
   4: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
 };
 
-function processLineup(lineup: any): any[] {
+function processLineup(raw: any): any[] {
+  const lineup = raw?.data ? raw.data : raw;
   if (!lineup?.formation) return [];
   const f = lineup.formation;
   const players: any[] = [];
   for (const [posKey, posPlayers] of Object.entries(f)) {
     if (!Array.isArray(posPlayers)) continue;
+    const posId = posKey === 'goalkeeper' ? 1 : posKey === 'defender' ? 2 : posKey === 'midfield' ? 3 : posKey === 'striker' ? 4 : 1;
     for (const p of posPlayers) {
-      const posId = posKey === 'goalkeeper' ? 1 : posKey === 'defender' ? 2 : posKey === 'midfield' ? 3 : 4;
+      if (!p?.playerMaster) continue;
       players.push({ ...p, positionId: posId });
     }
   }
@@ -47,6 +50,8 @@ export default function Clasificacion() {
   const user = useAuthStore((s) => s.user);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
 
   const { data: currentWeekData, isLoading: loadingWeek } = useQuery({
     queryKey: ['currentWeek'],
@@ -208,44 +213,56 @@ export default function Clasificacion() {
                   ) : lineupPlayers.length === 0 ? (
                     <div className="text-xs text-gray-400 text-center py-2">Sin datos de alineación</div>
                   ) : (
-                    <div className="space-y-1">
-                      {lineupPlayers.map((p: any, i: number) => {
-                        const pm = p.playerMaster || {};
-                        const teamBadge = teamNameMap.get(String(p.team?.id)) || '';
-                        const weekStat = pm.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
-                        const pts = weekStat?.totalPoints ?? p.points ?? 0;
-                        const posColor = POSITION_COLORS[p.positionId] || '';
+                    <div className="relative bg-gradient-to-b from-green-800/20 to-green-900/30 rounded-lg p-4 space-y-3">
+                      {([1, 2, 3, 4] as const).map((posId) => {
+                        const players = lineupPlayers.filter((p: any) => p.positionId === posId);
+                        if (players.length === 0) return null;
                         return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${posColor}`}>
-                              {POSITION_MAP[p.positionId] || '?'}
-                            </span>
-                            <img
-                              src={pm.images?.transparent?.['64x64'] || pm.images?.transparent?.['256x256']}
-                              alt=""
-                              className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                            <span className="text-xs text-gray-900 dark:text-white truncate flex-1">
-                              {pm.nickname || pm.name || '—'}
-                            </span>
-                            <span className="text-[9px] text-gray-500">{teamBadge}</span>
-                            <span className={`text-xs font-bold min-w-[24px] text-right ${
-                              pts > 0 ? 'text-green-600 dark:text-green-400' : pts < 0 ? 'text-red-500' : 'text-gray-400'
-                            }`}>
-                              {pts}
-                            </span>
+                          <div key={posId} className="flex justify-center gap-3">
+                            {players.map((p: any, i: number) => {
+                              const pm = p.playerMaster || {};
+                              const weekStat = pm.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
+                              const pts = weekStat?.totalPoints ?? null;
+                              const img = pm.images?.transparent?.['128x128'] || pm.images?.transparent?.['256x256'] || pm.images?.transparent?.['64x64'];
+                              return (
+                                <div key={i} className="flex flex-col items-center gap-0.5 w-16">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPlayer({
+                                        id: pm.id,
+                                        player_master_id: pm.id,
+                                        name: pm.name,
+                                        nickname: pm.nickname,
+                                        images: pm.images,
+                                      });
+                                      setIsPlayerModalOpen(true);
+                                    }}
+                                    className="relative"
+                                  >
+                                    <img
+                                      src={img}
+                                      alt=""
+                                      className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-600 shadow cursor-pointer hover:scale-110 transition-transform"
+                                      onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23374151"/><text x="28" y="35" text-anchor="middle" fill="white" font-size="20">?</text></svg>'; }}
+                                    />
+                                    {pts !== null && (
+                                      <span className={`absolute -bottom-1 -right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow ${
+                                        pts > 0 ? 'bg-green-500 text-white' : pts < 0 ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
+                                      }`}>
+                                        {pts}
+                                      </span>
+                                    )}
+                                  </button>
+                                  <span className="text-[10px] font-medium text-gray-900 dark:text-white text-center leading-tight truncate w-full">
+                                    {pm.nickname || pm.name || '—'}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
-                      {/* Formation */}
-                      {lineupData?.formation?.tacticalFormation && (
-                        <div className="text-center pt-1">
-                          <span className="text-[10px] font-semibold text-gray-400">
-                            {lineupData.formation.tacticalFormation}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -254,6 +271,11 @@ export default function Clasificacion() {
           );
         })}
       </div>
+      <PlayerDetailModal
+        player={selectedPlayer}
+        isOpen={isPlayerModalOpen}
+        onClose={() => { setIsPlayerModalOpen(false); setSelectedPlayer(null); }}
+      />
     </div>
   );
 }
