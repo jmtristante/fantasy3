@@ -45,19 +45,19 @@ export const fantasyAPI = {
   getPlayerDetails: (playerId: string, leagueId: string) => apiGet<any>(`/v1/competition/1/player/${playerId}/league/${leagueId}?x-lang=es`),
   getLeagueRankingByWeek: (leagueId: string, week: number) => apiGet<any>(`/v1/competition/1/leagues/${leagueId}/standing/${week}?x-lang=es`),
   getTeamLineup: (teamId: string, week: number) => apiGet<any>(`/v1/competition/1/teams/${teamId}/lineup/week/${week}?x-lang=es`),
-  getPlayerOffers: (leagueId: string, playerTeamId: string) => apiGet<any>(`/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/offers?x-lang=es`),
-  acceptOffer: (leagueId: string, playerTeamId: string, offerId: string, money: number) => {
+  getPlayerOffers: (leagueId: string, playerTeamId: string) => apiGet<any>(`/v1/competition/1/league/${leagueId}/playerTeam/${playerTeamId}/offer?x-lang=es`),
+  acceptOffer: (leagueId: string, marketId: string, offerId: string, offerMoney: number) => {
     const token = useAuthStore.getState().getBearerToken();
-    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/offer/${offerId}?x-lang=es`, {
-      method: 'PUT',
+    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/${marketId}/offer/${offerId}/accept?x-lang=es`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ money }),
+      body: JSON.stringify({ offerMoney }),
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
-  declineOffer: (leagueId: string, playerTeamId: string, offerId: string) => {
+  declineOffer: (leagueId: string, marketId: string, offerId: string) => {
     const token = useAuthStore.getState().getBearerToken();
-    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/offer/${offerId}?x-lang=es`, {
-      method: 'DELETE',
+    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/${marketId}/offer/${offerId}/reject?x-lang=es`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
