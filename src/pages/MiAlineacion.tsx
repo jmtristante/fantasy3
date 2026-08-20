@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Swords, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Swords, Save, RotateCcw, ChevronDown } from 'lucide-react';
 import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
+import toast from 'react-hot-toast';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
@@ -12,101 +13,278 @@ function extractArray(res: any): any[] {
   return [];
 }
 
-function processLineup(raw: any): any[] {
-  const lineup = raw?.data ? raw.data : raw;
-  if (!lineup?.formation) return [];
-  const f = lineup.formation;
-  const players: any[] = [];
-  for (const [posKey, posPlayers] of Object.entries(f)) {
-    if (!Array.isArray(posPlayers)) continue;
-    const posId = posKey === 'goalkeeper' ? 1 : posKey === 'defender' ? 2 : posKey === 'midfield' ? 3 : posKey === 'striker' ? 4 : 1;
-    for (const p of posPlayers) {
-      if (!p?.playerMaster) continue;
-      players.push({ ...p, positionId: posId });
-    }
-  }
-  return players.sort((a, b) => a.positionId - b.positionId);
-}
-
-const POS_LABELS: Record<number, string> = { 1: 'Portero', 2: 'Defensa', 3: 'Centrocampista', 4: 'Delantero' };
-const POS_SHORT: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
+const POS_LABELS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
 const POS_COLORS: Record<number, string> = {
   1: 'bg-yellow-500', 2: 'bg-blue-500', 3: 'bg-green-500', 4: 'bg-red-500',
 };
 
-function getPointsColor(pts: number): string {
-  if (pts >= 20) return 'bg-purple-500 text-white';
-  if (pts >= 10) return 'bg-blue-500 text-white';
-  if (pts >= 5) return 'bg-green-500 text-white';
-  if (pts > 0) return 'bg-yellow-500 text-white';
-  if (pts === 0) return 'bg-gray-400 text-white';
-  return 'bg-red-500 text-white';
+interface LineupSlot {
+  playerTeamId: number;
+  playerMaster: any;
+  [key: string]: any;
+}
+
+interface LineupState {
+  goalkeeper: LineupSlot | null;
+  defender: LineupSlot[];
+  midfield: LineupSlot[];
+  striker: LineupSlot[];
+}
+
+const EMPTY_LINEUP: LineupState = { goalkeeper: null, defender: [], midfield: [], striker: [] };
+
+function getFormationRequirements(formation: string): { defenders: number; midfielders: number; strikers: number } | null {
+  const parts = formation.split(',').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  return { defenders: parts[0], midfielders: parts[1], strikers: parts[2] };
 }
 
 export default function MiAlineacion() {
   const leagueId = useAuthStore((s) => s.leagueId);
   const user = useAuthStore((s) => s.user);
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const [lineup, setLineup] = useState<LineupState>(EMPTY_LINEUP);
+  const [originalLineup, setOriginalLineup] = useState<LineupState>(EMPTY_LINEUP);
+  const [selectedFormation, setSelectedFormation] = useState('');
+  const [originalFormation, setOriginalFormation] = useState('');
+  const [showFormationDropdown, setShowFormationDropdown] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ position: string; index?: number } | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const { data: currentWeekData, isLoading: loadingWeek } = useQuery({
-    queryKey: ['currentWeek'],
-    queryFn: () => fantasyAPI.getCurrentWeek(),
-    enabled: !!leagueId,
-  });
-  const currentWeek = currentWeekData?.weekNumber ?? currentWeekData?.data?.weekNumber ?? 1;
-
-  if (selectedWeek === null && currentWeek) setSelectedWeek(currentWeek);
-
-  const { data: standings, isLoading: loadingStandings } = useQuery({
+  const { data: standings } = useQuery({
     queryKey: ['standings', leagueId],
     queryFn: () => fantasyAPI.getLeagueRanking(leagueId!),
     enabled: !!leagueId,
     staleTime: 60_000,
   });
 
-  const teams = useMemo(() => extractArray(standings), [standings]);
-
-  const userTeam = useMemo(() => {
-    return teams.find((t: any) => {
-      const managerId = t.team?.manager?.id || t.userId;
-      return managerId === user?.id;
+  const userTeamId = useMemo(() => {
+    if (!standings || !user) return null;
+    const teams = extractArray(standings);
+    const found = teams.find((t: any) => {
+      const uid = t.userId || t.team?.manager?.id || t.team?.userId;
+      return uid && user.id && String(uid) === String(user.id);
     });
-  }, [teams, user]);
+    return found ? String(found.id || found.team?.id) : null;
+  }, [standings, user]);
 
-  if (!selectedTeamId && userTeam) {
-    setSelectedTeamId(String(userTeam.id || userTeam.team?.id));
-  }
-
-  const { data: lineupData, isLoading: loadingLineup } = useQuery({
-    queryKey: ['lineup', selectedTeamId, selectedWeek],
-    queryFn: () => fantasyAPI.getTeamLineup(selectedTeamId!, selectedWeek!),
-    enabled: !!selectedTeamId && selectedWeek != null,
-    staleTime: 60_000,
+  const { data: currentLineupData, isLoading: loadingLineup } = useQuery({
+    queryKey: ['currentLineup', userTeamId],
+    queryFn: () => fantasyAPI.getCurrentLineup(userTeamId!),
+    enabled: !!userTeamId,
+    staleTime: 0,
   });
 
-  const lineupPlayers = useMemo(() => processLineup(lineupData), [lineupData]);
+  const { data: formationsData } = useQuery({
+    queryKey: ['freeFormations'],
+    queryFn: () => fantasyAPI.getFreeFormations(),
+    staleTime: 60 * 60 * 1000,
+  });
 
-  const grouped = useMemo(() => {
+  const { data: allPlayersData } = useQuery({
+    queryKey: ['allPlayers'],
+    queryFn: () => fantasyAPI.getAllPlayers(),
+    staleTime: 300_000,
+  });
+
+  const allPlayers = useMemo(() => extractArray(allPlayersData), [allPlayersData]);
+
+  const formations = useMemo(() => {
+    const raw = extractArray(formationsData);
+    return raw.map((f: any) => (typeof f === 'string' ? f : f.formation || f.id || String(f))).filter(Boolean);
+  }, [formationsData]);
+
+  useEffect(() => {
+    if (!currentLineupData) return;
+    const data = currentLineupData?.data ? currentLineupData.data : currentLineupData;
+    const f = data?.formation;
+    if (!f) return;
+
+    const newLineup: LineupState = {
+      goalkeeper: f.goalkeeper?.[0] || null,
+      defender: f.defender || [],
+      midfield: f.midfield || [],
+      striker: f.striker || [],
+    };
+    setLineup(newLineup);
+    setOriginalLineup(JSON.parse(JSON.stringify(newLineup)));
+
+    const tf = f.tacticalFormation;
+    if (Array.isArray(tf)) {
+      const s = tf.join(',');
+      setSelectedFormation(s);
+      setOriginalFormation(s);
+    } else if (typeof tf === 'string') {
+      setSelectedFormation(tf);
+      setOriginalFormation(tf);
+    }
+  }, [currentLineupData]);
+
+  const handleFormationChange = (newFormation: string) => {
+    setSelectedFormation(newFormation);
+    setShowFormationDropdown(false);
+    const req = getFormationRequirements(newFormation);
+    if (!req) return;
+    setLineup(prev => ({
+      goalkeeper: prev.goalkeeper,
+      defender: prev.defender.slice(0, req.defenders),
+      midfield: prev.midfield.slice(0, req.midfielders),
+      striker: prev.striker.slice(0, req.strikers),
+    }));
+  };
+
+  const handlePlayerSelect = (player: any, position: string) => {
+    const ptId = player.playerTeamId || player.id;
+    const isInLineup =
+      lineup.goalkeeper?.playerTeamId === ptId ||
+      lineup.defender.some(p => p?.playerTeamId === ptId) ||
+      lineup.midfield.some(p => p?.playerTeamId === ptId) ||
+      lineup.striker.some(p => p?.playerTeamId === ptId);
+
+    if (isInLineup) {
+      toast.error('Este jugador ya está en la alineación');
+      return;
+    }
+
+    setLineup(prev => {
+      const next = { ...prev };
+      if (position === 'goalkeeper') {
+        next.goalkeeper = player;
+      } else if (position === 'defender' && selectedSlot?.index !== undefined) {
+        next.defender = [...prev.defender];
+        next.defender[selectedSlot.index] = player;
+      } else if (position === 'midfield' && selectedSlot?.index !== undefined) {
+        next.midfield = [...prev.midfield];
+        next.midfield[selectedSlot.index] = player;
+      } else if (position === 'striker' && selectedSlot?.index !== undefined) {
+        next.striker = [...prev.striker];
+        next.striker[selectedSlot.index] = player;
+      }
+      return next;
+    });
+    setSelectedSlot(null);
+  };
+
+  const handlePlayerRemove = (position: string, index?: number) => {
+    setLineup(prev => {
+      const next = { ...prev };
+      if (position === 'goalkeeper') {
+        next.goalkeeper = null;
+      } else if (position === 'defender' && index !== undefined) {
+        next.defender = [...prev.defender];
+        next.defender[index] = null as any;
+      } else if (position === 'midfield' && index !== undefined) {
+        next.midfield = [...prev.midfield];
+        next.midfield[index] = null as any;
+      } else if (position === 'striker' && index !== undefined) {
+        next.striker = [...prev.striker];
+        next.striker[index] = null as any;
+      }
+      return next;
+    });
+  };
+
+  const hasChanges = useMemo(() => {
+    return JSON.stringify(lineup) !== JSON.stringify(originalLineup) || selectedFormation !== originalFormation;
+  }, [lineup, originalLineup, selectedFormation, originalFormation]);
+
+  const handleSave = async () => {
+    if (!selectedFormation || !userTeamId) {
+      toast.error('Selecciona una formación válida');
+      return;
+    }
+    setSaving(true);
+    try {
+      const formationArray = selectedFormation.split(',').map(Number);
+      const lineupData = {
+        goalkeeper: lineup.goalkeeper ? (lineup.goalkeeper.playerTeamId || lineup.goalkeeper.id) : null,
+        defender: lineup.defender.filter(Boolean).map(p => p.playerTeamId || p.id),
+        midfield: lineup.midfield.filter(Boolean).map(p => p.playerTeamId || p.id),
+        striker: lineup.striker.filter(Boolean).map(p => p.playerTeamId || p.id),
+        tactical_formation: formationArray,
+      };
+      await fantasyAPI.updateLineup(userTeamId, lineupData);
+      toast.success('¡Alineación guardada!');
+      queryClient.invalidateQueries({ queryKey: ['currentLineup', userTeamId] });
+      setOriginalLineup(JSON.parse(JSON.stringify(lineup)));
+      setOriginalFormation(selectedFormation);
+    } catch (e: any) {
+      toast.error(e.message || 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevert = () => {
+    setLineup(JSON.parse(JSON.stringify(originalLineup)));
+    setSelectedFormation(originalFormation);
+  };
+
+  const req = getFormationRequirements(selectedFormation);
+  const playersByPosition = useMemo(() => {
     const groups: Record<number, any[]> = { 1: [], 2: [], 3: [], 4: [] };
-    lineupPlayers.forEach((p: any) => groups[p.positionId]?.push(p));
+    allPlayers.forEach((p: any) => {
+      const pos = p.positionId || p.position;
+      if (pos && groups[pos]) groups[pos].push(p);
+    });
     return groups;
-  }, [lineupPlayers]);
+  }, [allPlayers]);
 
-  const weekPoints = useMemo(() => {
-    return lineupPlayers.reduce((sum: number, p: any) => {
-      const stat = p.playerMaster?.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
-      return sum + (stat?.totalPoints ?? 0);
-    }, 0);
-  }, [lineupPlayers, selectedWeek]);
+  const renderSlot = (player: any | null, position: string, index?: number) => {
+    const pm = player?.playerMaster || player;
+    const img = pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'];
+    const name = pm?.nickname || pm?.name;
+    const isEmpty = !player;
 
-  const selectedTeam = teams.find((t: any) => String(t.id || t.team?.id) === selectedTeamId);
-  const teamName = selectedTeam?.name || selectedTeam?.team?.name || '';
+    return (
+      <button
+        key={index ?? position}
+        onClick={() => {
+          if (isEmpty) {
+            setSelectedSlot({ position, index });
+          } else {
+            setSelectedPlayer({
+              id: pm.id, player_master_id: pm.id, name: pm.name,
+              nickname: pm.nickname, images: pm.images,
+            });
+            setIsPlayerModalOpen(true);
+          }
+        }}
+        className={`relative flex flex-col items-center gap-1 group ${isEmpty ? 'opacity-60' : ''}`}
+      >
+        <div className="relative">
+          {img ? (
+            <img
+              src={img}
+              alt=""
+              className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center">
+              <span className="text-lg text-white/50">+</span>
+            </div>
+          )}
+          {!isEmpty && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePlayerRemove(position, index); }}
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <span className="text-[10px] font-semibold text-white drop-shadow text-center leading-tight max-w-[72px] truncate">
+          {name || 'Vacío'}
+        </span>
+      </button>
+    );
+  };
 
-  const loading = loadingWeek || loadingStandings;
-  if (loading) return <LoadingSpinner />;
+  if (loadingLineup) return <LoadingSpinner />;
 
   return (
     <div className="space-y-4">
@@ -117,169 +295,129 @@ export default function MiAlineacion() {
             <Swords className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Alineación</h1>
           </div>
-          {selectedWeek != null && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => { setSelectedWeek(Math.max(1, (selectedWeek || 1) - 1)); }}
-                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <ChevronLeft className="w-4 h-4" />
+          <div className="flex gap-2">
+            {hasChanges && (
+              <button onClick={handleRevert} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <RotateCcw className="w-3.5 h-3.5" /> Revertir
               </button>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white min-w-[40px] text-center">
-                J{selectedWeek}
-              </span>
-              <button
-                onClick={() => { setSelectedWeek(Math.min(currentWeek, (selectedWeek || 1) + 1)); }}
-                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="w-3.5 h-3.5" /> {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+
+        {/* Formation selector */}
+        <div className="relative">
+          <button
+            onClick={() => setShowFormationDropdown(!showFormationDropdown)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white w-full"
+          >
+            <span className="text-gray-500 dark:text-gray-400 text-xs">Formación:</span>
+            <span className="font-semibold">{selectedFormation || '—'}</span>
+            <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
+          </button>
+          {showFormationDropdown && (
+            <div className="absolute z-20 top-full mt-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {formations.map((f: string) => (
+                <button
+                  key={f}
+                  onClick={() => handleFormationChange(f)}
+                  className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                    selectedFormation === f ? 'bg-indigo-50 dark:bg-indigo-900/20 font-semibold text-indigo-700 dark:text-indigo-400' : ''
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
           )}
         </div>
-
-        {/* Team selector */}
-        <select
-          value={selectedTeamId || ''}
-          onChange={(e) => setSelectedTeamId(e.target.value)}
-          className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
-        >
-          {teams.map((t: any) => {
-            const id = String(t.id || t.team?.id);
-            const name = t.name || t.team?.name || id;
-            const manager = t.manager || t.team?.manager?.managerName || '';
-            return <option key={id} value={id}>{name} — {manager}</option>;
-          })}
-        </select>
-
-        {/* Stats */}
-        {teamName && (
-          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-medium text-gray-900 dark:text-white">{teamName}</span>
-            <span>·</span>
-            <span>J{selectedWeek}</span>
-            <span>·</span>
-            <span className={weekPoints > 0 ? 'text-green-600 dark:text-green-400 font-semibold' : ''}>
-              {weekPoints} pts
-            </span>
-            <span>·</span>
-            <span>{lineupPlayers.length}/11</span>
-          </div>
-        )}
       </div>
 
       {/* Pitch */}
-      {loadingLineup ? (
-        <LoadingSpinner />
-      ) : lineupPlayers.length === 0 ? (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-8 text-center text-gray-400 text-sm">
-          Sin datos de alineación para esta jornada
+      <div className="bg-gradient-to-b from-green-700 to-green-900 rounded-xl p-4 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-full" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-t-0 border-white rounded-t-none" />
         </div>
-      ) : (
-        <div className="bg-gradient-to-b from-green-700 to-green-900 rounded-xl p-4 relative overflow-hidden">
-          {/* Field markings */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-full" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-t-0 border-white rounded-t-none" />
-          </div>
 
-          {/* Formation rows */}
-          <div className="relative space-y-6 py-4">
-            {[4, 3, 2, 1].map((posId) => {
-              const players = grouped[posId];
-              if (!players || players.length === 0) return null;
-              return (
-                <div key={posId} className="flex justify-center gap-4">
-                  {players.map((p: any, i: number) => {
-                    const pm = p.playerMaster;
-                    const stat = pm.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
-                    const pts = stat?.totalPoints ?? null;
-                    const img = pm.images?.transparent?.['128x128'] || pm.images?.transparent?.['256x256'] || pm.images?.transparent?.['64x64'];
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setSelectedPlayer({ id: pm.id, player_master_id: pm.id, name: pm.name, nickname: pm.nickname, images: pm.images });
-                          setIsPlayerModalOpen(true);
-                        }}
-                        className="flex flex-col items-center gap-1 group"
-                      >
-                        <div className="relative">
-                          <img
-                            src={img}
-                            alt=""
-                            className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
-                            onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23ffffff33"/><text x="28" y="35" text-anchor="middle" fill="white" font-size="20">?</text></svg>'; }}
-                          />
-                          {pts !== null && (
-                            <span className={`absolute -bottom-1 -left-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow ${getPointsColor(pts)}`}>
-                              {pts}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-semibold text-white drop-shadow text-center leading-tight max-w-[72px] truncate">
-                          {pm.nickname || pm.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Player list by position */}
-      {lineupPlayers.length > 0 && (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((posId) => {
-            const players = grouped[posId];
-            if (!players || players.length === 0) return null;
-            return (
-              <div key={posId} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                <div className={`px-3 py-2 flex items-center gap-2 ${POS_COLORS[posId]}`}>
-                  <span className="text-[10px] font-bold text-white/80">{POS_SHORT[posId]}</span>
-                  <span className="text-xs font-semibold text-white">{POS_LABELS[posId]}s</span>
-                  <span className="text-[10px] text-white/70 ml-auto">{players.length}</span>
-                </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {players.map((p: any, i: number) => {
-                    const pm = p.playerMaster;
-                    const stat = pm.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
-                    const pts = stat?.totalPoints ?? null;
-                    const img = pm.images?.transparent?.['64x64'] || pm.images?.transparent?.['128x128'];
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setSelectedPlayer({ id: pm.id, player_master_id: pm.id, name: pm.name, nickname: pm.nickname, images: pm.images });
-                          setIsPlayerModalOpen(true);
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                      >
-                        <img
-                          src={img}
-                          alt=""
-                          className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                        <span className="text-xs font-medium text-gray-900 dark:text-white flex-1 text-left truncate">
-                          {pm.nickname || pm.name}
-                        </span>
-                        {pts !== null && (
-                          <span className={`text-xs font-bold ${pts > 0 ? 'text-green-600 dark:text-green-400' : pts < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                            {pts} pts
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+        <div className="relative space-y-6 py-4">
+          {/* Strikers */}
+          <div className="flex justify-center gap-4">
+            {Array.from({ length: req?.strikers || 0 }).map((_, i) => (
+              <div key={`striker-${i}`}>
+                {renderSlot(lineup.striker[i] || null, 'striker', i)}
               </div>
-            );
-          })}
+            ))}
+          </div>
+          {/* Midfielders */}
+          <div className="flex justify-center gap-4">
+            {Array.from({ length: req?.midfielders || 0 }).map((_, i) => (
+              <div key={`midfield-${i}`}>
+                {renderSlot(lineup.midfield[i] || null, 'midfield', i)}
+              </div>
+            ))}
+          </div>
+          {/* Defenders */}
+          <div className="flex justify-center gap-4">
+            {Array.from({ length: req?.defenders || 0 }).map((_, i) => (
+              <div key={`defender-${i}`}>
+                {renderSlot(lineup.defender[i] || null, 'defender', i)}
+              </div>
+            ))}
+          </div>
+          {/* Goalkeeper */}
+          <div className="flex justify-center">
+            {renderSlot(lineup.goalkeeper || null, 'goalkeeper')}
+          </div>
+        </div>
+      </div>
+
+      {/* Player selection modal */}
+      {selectedSlot && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={() => setSelectedSlot(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                Seleccionar {POS_LABELS[selectedSlot.position === 'goalkeeper' ? 1 : selectedSlot.position === 'defender' ? 2 : selectedSlot.position === 'midfield' ? 3 : 4]}
+              </span>
+              <button onClick={() => setSelectedSlot(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            <div className="overflow-y-auto max-h-[60vh] p-2 space-y-1">
+              {(playersByPosition[selectedSlot.position === 'goalkeeper' ? 1 : selectedSlot.position === 'defender' ? 2 : selectedSlot.position === 'midfield' ? 3 : 4] || []).map((p: any) => {
+                const ptId = p.playerTeamId || p.id;
+                const pm = p.playerMaster || p;
+                const img = pm.images?.transparent?.['64x64'] || pm.images?.transparent?.['128x128'];
+                const isInLineup =
+                  lineup.goalkeeper?.playerTeamId === ptId ||
+                  lineup.defender.some(x => x?.playerTeamId === ptId) ||
+                  lineup.midfield.some(x => x?.playerTeamId === ptId) ||
+                  lineup.striker.some(x => x?.playerTeamId === ptId);
+                return (
+                  <button
+                    key={ptId}
+                    disabled={isInLineup}
+                    onClick={() => handlePlayerSelect(p, selectedSlot.position)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                      isInLineup ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+                    <span className="text-xs font-medium text-gray-900 dark:text-white flex-1 text-left">
+                      {pm.nickname || pm.name}
+                    </span>
+                    {isInLineup && <span className="text-[9px] text-gray-400">en campo</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

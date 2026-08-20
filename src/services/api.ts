@@ -92,5 +92,15 @@ export const fantasyAPI = {
       body: JSON.stringify({ money }),
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
+  getCurrentLineup: (teamId: string) => apiGet<any>(`/v1/competition/1/teams/${teamId}/lineup?x-lang=es`),
+  updateLineup: (teamId: string, lineupData: any) => {
+    const token = useAuthStore.getState().getBearerToken();
+    return fetch(`${BASE_URL}/api/v1/competition/1/teams/${teamId}/lineup?x-lang=es`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(lineupData),
+    }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
+  },
+  getFreeFormations: () => apiGet<any>('/v4/teams/lineup/formations?option=free&x-lang=es'),
   getCurrentUser: () => apiGet<any>('/v4/user/me?x-lang=es'),
 };
