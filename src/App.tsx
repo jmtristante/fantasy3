@@ -17,6 +17,7 @@ import Market from './pages/Market';
 import Clauses from './pages/Clauses';
 import Rentabilidad from './pages/Rentabilidad';
 import Clasificacion from './pages/Clasificacion';
+import MiAlineacion from './pages/MiAlineacion';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +77,7 @@ function App() {
               <Route path="/clauses" element={<Clauses />} />
               <Route path="/rentabilidad" element={<Rentabilidad />} />
               <Route path="/standings" element={<Clasificacion />} />
+              <Route path="/lineup" element={<MiAlineacion />} />
             </Route>
           </Routes>
           </BrowserRouter>
