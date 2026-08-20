@@ -43,7 +43,7 @@ export async function loadLaLigaSession(): Promise<LaLigaSession | null> {
     .from('laliga_sessions')
     .select('*')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
   return {
