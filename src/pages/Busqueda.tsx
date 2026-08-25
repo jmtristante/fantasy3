@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, Filter } from 'lucide-react';
 import { fantasyAPI } from '../services/api';
 import { usePreciosActuales } from '../contexts/PreciosActualesContext';
+import { fetchAllTeamsData, extractTeamPlayers } from '../utils/fetchAllTeamsData';
+import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 import TrendBadge from '../components/Common/TrendBadge';
@@ -30,6 +32,8 @@ const POS_COLORS: Record<number, string> = {
 type SortKey = 'name' | 'points' | 'value' | 'prob';
 
 export default function Busqueda() {
+  const leagueId = useAuthStore((s) => s.leagueId);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortKey>('points');
@@ -62,6 +66,42 @@ export default function Busqueda() {
     return map;
   }, [teamsMasterData]);
 
+  const { data: standings } = useQuery({
+    queryKey: ['standings', leagueId],
+    queryFn: () => fantasyAPI.getLeagueRanking(leagueId!),
+    enabled: !!leagueId,
+    staleTime: 60_000,
+  });
+
+  const ownerMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!standings) return map;
+    const teams = extractArray(standings);
+    teams.forEach((t: any) => {
+      const managerName = t.manager || t.team?.manager?.managerName || '';
+      const teamId = String(t.id || t.team?.id);
+      const teamData = queryClient.getQueryData(['teamData', leagueId, teamId]);
+      const players = extractTeamPlayers(teamData);
+      players.forEach((pt: any) => {
+        const pmId = String(pt.playerMaster?.id || pt.playerId);
+        if (pmId && managerName) map.set(pmId, managerName);
+      });
+    });
+    return map;
+  }, [standings, leagueId, queryClient]);
+
+  // Trigger team data fetch
+  useQuery({
+    queryKey: ['allTeamsOwnership', leagueId],
+    queryFn: async () => {
+      if (!standings || !leagueId) return null;
+      await fetchAllTeamsData(queryClient, leagueId, standings);
+      return true;
+    },
+    enabled: !!standings && !!leagueId,
+    staleTime: 300_000,
+  });
+
   const players = useMemo(() => {
     return extractArray(playersData).map((p: any) => {
       const jugadorId = mapeo.get(Number(p.id));
@@ -75,7 +115,8 @@ export default function Busqueda() {
       }
       const teamName = teamNameMap.get(String(p.teamId || p.team?.id)) || '';
       const teamBadge = teamBadgeMap.get(String(p.teamId || p.team?.id)) || null;
-      return { ...p, probabilidad, tendencia, teamName, teamBadge };
+      const owner = ownerMap.get(String(p.id)) || null;
+      return { ...p, probabilidad, tendencia, teamName, teamBadge, owner };
     });
   }, [playersData, mapeo, scrapingPlayers, precios, teamNameMap, teamBadgeMap]);
 
@@ -149,7 +190,7 @@ export default function Busqueda() {
             setIsPlayerModalOpen(true);
           }}
             className="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all text-left">
-            <img src={p.images?.transparent?.['256x256'] || p.images?.transparent?.['128x128']} alt=""
+            <img src={p.images?.transparent?.['256x256'] || p.images?.transparent?.['128x128'] || p.image} alt=""
               className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <div className="flex-1 min-w-0">
@@ -176,6 +217,11 @@ export default function Busqueda() {
             {p.tendencia != null && (
               <div className="flex-shrink-0">
                 <TrendBadge tendencia={p.tendencia} />
+              </div>
+            )}
+            {p.owner && (
+              <div className="text-[9px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded flex-shrink-0">
+                {p.owner}
               </div>
             )}
           </button>
