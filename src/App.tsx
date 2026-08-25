@@ -20,6 +20,7 @@ import Clasificacion from './pages/Clasificacion';
 import MiAlineacion from './pages/MiAlineacion';
 import Jornadas from './pages/Jornadas';
 import Equipos from './pages/Equipos';
+import Busqueda from './pages/Busqueda';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +83,7 @@ function App() {
               <Route path="/lineup" element={<MiAlineacion />} />
               <Route path="/jornadas" element={<Jornadas />} />
               <Route path="/equipos" element={<Equipos />} />
+              <Route path="/busqueda" element={<Busqueda />} />
             </Route>
           </Routes>
           </BrowserRouter>
