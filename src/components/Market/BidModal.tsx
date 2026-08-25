@@ -43,7 +43,7 @@ export default function BidModal({ isOpen, onClose, item, isModifying, currentBi
     setError('');
     try {
       if (isModifying) {
-        await fantasyAPI.modifyBid(leagueId, item.id, item.bidId || '', bidAmount);
+        await fantasyAPI.modifyBid(leagueId, item.id, item.bid?.id || item.bidId || '', bidAmount);
       } else {
         await fantasyAPI.makeBid(leagueId, item.id, bidAmount);
       }
