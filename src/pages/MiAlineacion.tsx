@@ -321,7 +321,7 @@ export default function MiAlineacion() {
             </div>
           )}
           {!isEmpty && badge && (
-            <img src={badge} alt="" className="absolute -bottom-0.5 -right-0.5 w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-white shadow object-contain"
+            <img src={badge} alt="" className="absolute -bottom-1 -right-1 w-7 h-7 lg:w-8 lg:h-8 rounded-full shadow object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           )}
           {!isEmpty && (
@@ -342,48 +342,50 @@ export default function MiAlineacion() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Swords className="w-5 h-5 text-primary" />
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Alineación</h1>
-          </div>
-          <div className="flex gap-2">
-            {hasChanges && (
-              <button onClick={handleRevert} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
-                <RotateCcw className="w-3.5 h-3.5" /> Revertir
-              </button>
-            )}
-            <button onClick={handleSave} disabled={!hasChanges || saving}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Save className="w-3.5 h-3.5" /> {saving ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-        </div>
-        <div className="relative">
-          <button onClick={() => setShowFormationDropdown(!showFormationDropdown)}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white w-full">
-            <span className="text-gray-500 dark:text-gray-400 text-xs">Formación:</span>
-            <span className="font-semibold">{selectedFormation || '—'}</span>
-            <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
-          </button>
-          {showFormationDropdown && (
-            <div className="absolute z-20 top-full mt-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {formations.map((f: string) => (
-                <button key={f} onClick={() => handleFormationChange(f)}
-                  className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-800 ${selectedFormation === f ? 'bg-indigo-50 dark:bg-indigo-900/20 font-semibold text-indigo-700 dark:text-indigo-400' : ''}`}>
-                  {f}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Title */}
+      <div className="flex items-center gap-2">
+        <Swords className="w-5 h-5 text-primary" />
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Alineación</h1>
       </div>
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
         {/* Pitch */}
         <div className="bg-gradient-to-b from-green-700 to-green-900 rounded-xl p-4 relative overflow-hidden">
+          {/* Formation selector - top left */}
+          <div className="absolute top-3 left-3 z-10">
+            <div className="relative">
+              <button onClick={() => setShowFormationDropdown(!showFormationDropdown)}
+                className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold rounded-lg bg-black/30 text-white backdrop-blur-sm hover:bg-black/50 transition-colors">
+                {selectedFormation || '—'}
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {showFormationDropdown && (
+                <div className="absolute z-20 top-full mt-1 left-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto min-w-[80px]">
+                  {formations.map((f: string) => (
+                    <button key={f} onClick={() => handleFormationChange(f)}
+                      className={`w-full px-3 py-1.5 text-[11px] text-left hover:bg-gray-50 dark:hover:bg-gray-800 ${selectedFormation === f ? 'bg-indigo-50 dark:bg-indigo-900/20 font-semibold text-indigo-700 dark:text-indigo-400' : ''}`}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Save/Revert - top right */}
+          <div className="absolute top-3 right-3 z-10 flex gap-1.5">
+            {hasChanges && (
+              <button onClick={handleRevert}
+                className="p-1.5 rounded-lg bg-black/30 text-white backdrop-blur-sm hover:bg-black/50 transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button onClick={handleSave} disabled={!hasChanges || saving}
+              className="flex items-center gap-1 px-2 py-1.5 text-[11px] font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm">
+              <Save className="w-3 h-3" /> Guardar
+            </button>
+          </div>
+
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-full" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
@@ -438,6 +440,7 @@ export default function MiAlineacion() {
                     const nextOppId = nextOpponents.ids.get(teamId);
                     const nextOppBadge = nextOppId ? teamBadgeMap.get(nextOppId) : null;
                     const avgPoints = pm.lastStats?.length ? (pm.lastStats.reduce((s: number, st: any) => s + (st.totalPoints || 0), 0) / pm.lastStats.length).toFixed(1) : null;
+                    const playerBadge = teamBadgeMap.get(teamId);
                     return (
                       <button key={ptId}
                         onClick={() => {
@@ -453,28 +456,27 @@ export default function MiAlineacion() {
                           handlePlayerSelect(pt, posName);
                         }}
                         disabled={inLineup}
-                        className={`w-full flex items-center gap-3 px-3 py-2 transition-colors ${inLineup ? 'bg-indigo-50 dark:bg-indigo-900/10 opacity-60' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-                        <img src={img} alt="" className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700"
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors ${inLineup ? 'bg-indigo-50 dark:bg-indigo-900/10 opacity-60' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
+                        <img src={img} alt="" className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        <div className="flex-1 text-left min-w-0">
-                          <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{pm.nickname || pm.name}</div>
-                          <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                            {avgPoints != null && <span className="text-gray-600 dark:text-gray-400">{avgPoints} pts</span>}
-                            {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
-                            {nextOppName && (
-                              <span className="flex items-center gap-1">
-                                vs{' '}
-                                {nextOppBadge ? (
-                                  <img src={nextOppBadge} alt="" className="w-3 h-3 rounded-full object-contain" />
-                                ) : (
-                                  <span>{nextOppName}</span>
-                                )}
-                              </span>
-                            )}
-                          </div>
+                        <div className="flex-1 text-left min-w-0 flex items-center gap-2">
+                          {playerBadge && <img src={playerBadge} alt="" className="w-4 h-4 rounded-full object-contain flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{pm.nickname || pm.name}</span>
                         </div>
-                        {inLineup && <span className="text-[9px] font-semibold bg-indigo-500 text-white px-1.5 py-0.5 rounded">En campo</span>}
-                        {!inLineup && <span className="text-[10px] text-gray-400">{pm.points || 0} pts</span>}
+                        <div className="flex items-center gap-2.5 text-xs flex-shrink-0">
+                          {avgPoints != null && <span className="text-gray-600 dark:text-gray-400">{avgPoints} pts</span>}
+                          {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
+                          {nextOppName && (
+                            <span className="flex items-center gap-1">
+                              vs{' '}
+                              {nextOppBadge ? (
+                                  <img src={nextOppBadge} alt="" className="w-4 h-4 rounded-full object-contain" />
+                              ) : (
+                                <span>{nextOppName}</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
