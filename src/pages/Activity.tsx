@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { fantasyAPI } from '../services/api';
 import { ACTIVITY_TYPES } from '../components/Activity/activityUtils';
+import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 
 const ICONS: Record<number, React.ElementType> = {
   1: ShoppingCart, 31: ShoppingCart, 32: Shield, 33: TrendingUp, 6: Euro, 9: UserPlus, 4: Shield, 7: Calendar,
@@ -78,6 +79,8 @@ export default function Activity() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [limit, setLimit] = useState(50);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
 
   const [allActivity, setAllActivity] = useState<any[]>([]);
   const [fetchingPages, setFetchingPages] = useState(false);
@@ -233,11 +236,19 @@ export default function Activity() {
 
                     {/* Player photo */}
                     {playerImg ? (
-                      <img
-                        src={playerImg}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-white dark:border-gray-800 shadow-sm"
-                      />
+                      <button
+                        onClick={() => {
+                          const id = a.playerMasterId ?? a.playerId ?? a.playerMaster?.id;
+                          if (id) {
+                            const pm = a.playerMaster || players.get(String(id)) || {};
+                            setSelectedPlayer({ id, player_master_id: id, name: pm.name, nickname: pm.nickname, images: pm.images });
+                            setIsPlayerModalOpen(true);
+                          }
+                        }}
+                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-800 shadow-sm"
+                      >
+                        <img src={playerImg} alt="" className="w-full h-full object-cover" />
+                      </button>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                         <span className="text-xs font-medium text-gray-500">
@@ -252,7 +263,19 @@ export default function Activity() {
                         <span className="font-semibold text-gray-900 dark:text-white">{userName}</span>{' '}
                         <span className="text-muted">{verb}</span>{' '}
                         {playerName && (
-                          <span className="font-semibold text-gray-900 dark:text-white">{playerName}</span>
+                          <button
+                            onClick={() => {
+                              const id = a.playerMasterId ?? a.playerId ?? a.playerMaster?.id;
+                              if (id) {
+                                const pm = a.playerMaster || players.get(String(id)) || {};
+                                setSelectedPlayer({ id, player_master_id: id, name: pm.name, nickname: pm.nickname, images: pm.images });
+                                setIsPlayerModalOpen(true);
+                              }
+                            }}
+                            className="font-semibold text-gray-900 dark:text-white hover:underline"
+                          >
+                            {playerName}
+                          </button>
                         )}
                         {sellerName && (
                           <span className="text-muted"> a <span className="font-medium text-gray-700 dark:text-gray-300">{sellerName}</span></span>
@@ -294,6 +317,9 @@ export default function Activity() {
           </Button>
         </div>
       )}
+
+      <PlayerDetailModal player={selectedPlayer} isOpen={isPlayerModalOpen}
+        onClose={() => { setIsPlayerModalOpen(false); setSelectedPlayer(null); }} />
     </div>
   );
 }
