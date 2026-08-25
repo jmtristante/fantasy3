@@ -154,6 +154,9 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
             <div className="flex items-center gap-4 text-sm mt-1">
               <span className="text-muted">Invertido: <strong className="text-gray-900 dark:text-white">{formatMoney(member.invertido)}</strong></span>
               <span className="text-muted">Devuelto: <strong className="text-gray-900 dark:text-white">{formatMoney(member.devuelto)}</strong></span>
+              {member.ganado_puntos > 0 && (
+                <span className="text-muted">Puntos: <strong className="text-green-600 dark:text-green-400">+{formatMoney(member.ganado_puntos)}</strong></span>
+              )}
               <span className={`font-bold ${member.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {member.rentabilidad >= 0 ? '+' : ''}{formatMoney(member.rentabilidad)}
               </span>
@@ -182,6 +185,7 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
               <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-right">Valor</th>
               <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-right">Invertido</th>
               <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-right">Devuelto</th>
+              <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-right">Puntos</th>
               <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-right">Rentab.</th>
               <th className="px-4 py-2 font-medium text-gray-500 dark:text-gray-400 text-center">Estado</th>
             </tr>
@@ -209,6 +213,9 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
                 <td className="px-4 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatMoney(f.valor_actual)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatMoney(f.invertido)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatMoney(f.devuelto)}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-green-600 dark:text-green-400">
+                  {f.ganado_puntos > 0 ? `+${formatMoney(f.ganado_puntos)}` : '—'}
+                </td>
                 <td className={`px-4 py-2 text-right font-semibold tabular-nums ${f.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {f.rentabilidad >= 0 ? '+' : ''}{formatMoney(f.rentabilidad)}
                 </td>

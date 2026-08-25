@@ -361,6 +361,8 @@ export async function fetchRentabilidad(leagueId, signal) {
         ventas: 0,
         jugador_id: map.get(Number(pmId)) ?? null,
         tuvoCompra: false,
+        compraWeek: null,
+        ventaWeek: null,
       };
       porKey.set(k, s);
     }
@@ -443,8 +445,9 @@ export async function fetchRentabilidad(leagueId, signal) {
     s.fichaje += entrada;
   }
 
-  // Valor actual de los que siguen en plantilla (devuelto).
+  // Valor actual de los que siguen en plantilla (devuelto) + puntos ganados (100k por punto).
   const owners = new Set();
+  const PUNTO_VALOR = 100_000;
   for (const d of detalle) {
     for (const p of d.players) {
       const k = keyDe(d.mid, p.playerMasterId);
@@ -454,6 +457,14 @@ export async function fetchRentabilidad(leagueId, signal) {
       const mv = mvMap.get(k) ?? null;
       const valor = (j != null ? latestPrices.get(j)?.valor : null) ?? mv;
       if (valor != null) s.devuelto += valor;
+      // Puntos ganados mientras estuvo en plantilla
+      const laLiga = allPlayersMap.get(String(p.playerMasterId));
+      const lastStats = laLiga?.lastStats || [];
+      const enPlantilla = true;
+      if (enPlantilla && lastStats.length > 0) {
+        const puntosTotales = lastStats.reduce((sum: number, st: any) => sum + (st.totalPoints || 0), 0);
+        s.ganado_puntos = (s.ganado_puntos || 0) + puntosTotales * PUNTO_VALOR;
+      }
     }
   }
 
@@ -486,6 +497,7 @@ export async function fetchRentabilidad(leagueId, signal) {
       en_plantilla: enPlantilla,
       invertido: s.invertido,
       devuelto: s.devuelto,
+      ganado_puntos: s.ganado_puntos || 0,
       rentabilidad: s.devuelto - s.invertido,
     };
     const lista = filasPorMiembro.get(mid) ?? [];
@@ -501,8 +513,9 @@ export async function fetchRentabilidad(leagueId, signal) {
         (acc, f) => ({
           invertido: acc.invertido + f.invertido,
           devuelto: acc.devuelto + f.devuelto,
+          ganado_puntos: acc.ganado_puntos + (f.ganado_puntos || 0),
         }),
-        { invertido: 0, devuelto: 0 },
+        { invertido: 0, devuelto: 0, ganado_puntos: 0 },
       );
       const subidaHoy = filas
         .filter((f) => f.en_plantilla)
@@ -515,6 +528,7 @@ export async function fetchRentabilidad(leagueId, signal) {
         filas,
         invertido: totales.invertido,
         devuelto: totales.devuelto,
+        ganado_puntos: totales.ganado_puntos,
         rentabilidad: totales.devuelto - totales.invertido,
         subida_hoy: subidaHoy,
       };
