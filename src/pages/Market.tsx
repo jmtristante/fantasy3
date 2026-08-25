@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Card, Spinner } from '@heroui/react';
-import { Search, ShoppingCart, Inbox } from 'lucide-react';
+import { Search, ShoppingCart, Inbox, Wallet } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { fantasyAPI } from '../services/api';
@@ -42,6 +42,7 @@ function formatHours(dateStr: string | null) {
 
 export default function Market() {
   const leagueId = useAuthStore((s) => s.leagueId);
+  const laligaUser = useAuthStore((s) => s.laligaUser);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('all');
@@ -49,6 +50,36 @@ export default function Market() {
   const [bidModal, setBidModal] = useState<{ item: any; isModifying: boolean } | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'mercado' | 'ofertas'>('mercado');
+
+  const { data: standings } = useQuery({
+    queryKey: ['standings', leagueId],
+    queryFn: () => fantasyAPI.getLeagueRanking(leagueId!),
+    enabled: !!leagueId,
+    staleTime: 60_000,
+  });
+
+  const userTeamId = useMemo(() => {
+    const teams = extractArray(standings);
+    for (const t of teams) {
+      const uid = t.userId || t.team?.manager?.id || t.team?.userId;
+      if (uid && laligaUser?.userId && String(uid) === String(laligaUser.userId)) {
+        return String(t.id || t.team?.id);
+      }
+    }
+    return null;
+  }, [standings, laligaUser]);
+
+  const { data: teamMoneyData } = useQuery({
+    queryKey: ['teamMoney', userTeamId],
+    queryFn: () => fantasyAPI.getTeamMoney(userTeamId!),
+    enabled: !!userTeamId,
+    staleTime: 30_000,
+  });
+
+  const userMoney = useMemo(() => {
+    const raw = teamMoneyData?.data ?? teamMoneyData;
+    return typeof raw === 'number' ? raw : (raw?.teamMoney ?? raw?.money ?? 0);
+  }, [teamMoneyData]);
 
   const handleCancelBid = async (item: any) => {
     if (!leagueId || !item.myBidId) return;
@@ -131,6 +162,12 @@ export default function Market() {
       });
   }, [marketData, teamsMap, precios, mapeo, trendsReady]);
 
+  const totalBids = useMemo(() => {
+    return items.reduce((sum: number, item: any) => sum + (item.myBid || 0), 0);
+  }, [items]);
+
+  const remainingMoney = userMoney - totalBids;
+
   const filtered = useMemo(() => {
     let result = items;
     if (search) {
@@ -159,6 +196,33 @@ export default function Market() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mercado</h1>
       </div>
+
+      {/* Money summary */}
+      {userMoney > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Wallet className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-500">Cartera:</span>
+              <span className="font-bold text-gray-900 dark:text-white">{formatMoney(userMoney)}</span>
+            </div>
+            {totalBids > 0 && (
+              <>
+                <span className="text-gray-300">|</span>
+                <div>
+                  <span className="text-gray-500">Pujas: </span>
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">-{formatMoney(totalBids)}</span>
+                </div>
+                <span className="text-gray-300">|</span>
+                <div>
+                  <span className="text-gray-500">Disponible: </span>
+                  <span className={`font-bold ${remainingMoney >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{formatMoney(remainingMoney)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
