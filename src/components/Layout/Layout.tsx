@@ -8,6 +8,7 @@ const menuItems = [
   { path: '/lineup', label: 'Alineación', icon: Swords },
   { path: '/jornadas', label: 'Jornadas', icon: Calendar },
   { path: '/market', label: 'Mercado', icon: ShoppingCart },
+  { path: '/clauses', label: 'Cláusulas', icon: Shield },
   { path: '/equipos', label: 'Equipos', icon: Wallet },
   { path: '/standings', label: 'Clasif.', icon: Trophy },
   { path: '/rentabilidad', label: 'Rentab.', icon: TrendingUp },

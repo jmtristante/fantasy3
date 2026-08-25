@@ -61,25 +61,25 @@ export const fantasyAPI = {
       headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
-  makeBid: (leagueId: string, playerTeamId: string, money: number) => {
+  makeBid: (leagueId: string, marketId: string, money: number) => {
     const token = useAuthStore.getState().getBearerToken();
-    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/bid?x-lang=es`, {
+    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/${marketId}/bid?x-lang=es`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ money }),
+    }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
+  },
+  modifyBid: (leagueId: string, marketId: string, bidId: string, money: number) => {
+    const token = useAuthStore.getState().getBearerToken();
+    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/${marketId}/bid/${bidId}?x-lang=es`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ money }),
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
-  modifyBid: (leagueId: string, playerTeamId: string, bidId: string, money: number) => {
+  cancelBid: (leagueId: string, marketId: string, bidId: string) => {
     const token = useAuthStore.getState().getBearerToken();
-    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/bid/${bidId}?x-lang=es`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ money }),
-    }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
-  },
-  cancelBid: (leagueId: string, playerTeamId: string, bidId: string) => {
-    const token = useAuthStore.getState().getBearerToken();
-    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/player/${playerTeamId}/bid/${bidId}?x-lang=es`, {
+    return fetch(`${BASE_URL}/api/v1/competition/1/league/${leagueId}/market/${marketId}/bid/${bidId}/cancel?x-lang=es`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
