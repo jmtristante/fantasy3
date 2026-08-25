@@ -1,5 +1,5 @@
 import { Outlet, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Trophy, ShoppingCart, Shield, TrendingUp, LogOut, Moon, Sun, Swords, Calendar, Wallet } from 'lucide-react';
+import { Home, Trophy, ShoppingCart, Shield, TrendingUp, LogOut, Moon, Sun, Swords, Calendar, Wallet, Activity } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -11,6 +11,7 @@ const menuItems = [
   { path: '/clauses', label: 'Cláusulas', icon: Shield },
   { path: '/equipos', label: 'Equipos', icon: Wallet },
   { path: '/standings', label: 'Clasif.', icon: Trophy },
+  { path: '/activity', label: 'Movim.', icon: Activity },
   { path: '/rentabilidad', label: 'Rentab.', icon: TrendingUp },
 ];
 
