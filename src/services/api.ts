@@ -102,5 +102,12 @@ export const fantasyAPI = {
     }).then(r => { if (!r.ok) throw new Error('Error'); return r.json(); });
   },
   getFreeFormations: () => apiGet<any>('/v4/teams/lineup/formations?option=free&x-lang=es'),
+  getMatchStats: (week: number) => {
+    const token = useAuthStore.getState().getBearerToken();
+    if (!token) throw new Error('No token');
+    return fetch(`${BASE_URL}/stats/v1/competition/1/stats/week/${week}?x-lang=es`, {
+      headers: { 'Content-Type': 'application/json', 'x-lang': 'es', 'Authorization': `Bearer ${token}` },
+    }).then(r => { if (!r.ok) throw new Error(`API error: ${r.status}`); return r.json(); });
+  },
   getCurrentUser: () => apiGet<any>('/v4/user/me?x-lang=es'),
 };
