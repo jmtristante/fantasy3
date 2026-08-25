@@ -72,28 +72,28 @@ export default function Layout() {
 
       {/* Bottom nav - mobile only */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-40">
-        <div className="flex items-center justify-around py-2">
+        <div className="flex items-center overflow-x-auto scrollbar-hide py-2 px-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <RouterLink
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
+                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors flex-shrink-0 ${
                   isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
                 }`}
               >
                 <item.icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <span className="text-[10px] font-medium whitespace-nowrap">{item.label}</span>
               </RouterLink>
             );
           })}
           <button
             onClick={() => { logout(); navigate('/login'); }}
-            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-400 dark:text-gray-500"
+            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-400 dark:text-gray-500 flex-shrink-0"
           >
             <LogOut className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Salir</span>
+            <span className="text-[10px] font-medium whitespace-nowrap">Salir</span>
           </button>
         </div>
       </nav>

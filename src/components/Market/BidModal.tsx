@@ -10,7 +10,7 @@ interface BidModalProps {
   item: any;
   isModifying: boolean;
   currentBid: number;
-  onAfterBid: () => void;
+  onAfterBid: (bidId?: string, amount?: number) => void;
 }
 
 function formatMoney(v: number) {
@@ -42,12 +42,14 @@ export default function BidModal({ isOpen, onClose, item, isModifying, currentBi
     setLoading(true);
     setError('');
     try {
+      let res: any;
       if (isModifying) {
-        await fantasyAPI.modifyBid(leagueId, item.id, item.bid?.id || item.bidId || '', bidAmount);
+        res = await fantasyAPI.modifyBid(leagueId, item.id, item.bid?.id || item.bidId || '', bidAmount);
       } else {
-        await fantasyAPI.makeBid(leagueId, item.id, bidAmount);
+        res = await fantasyAPI.makeBid(leagueId, item.id, bidAmount);
       }
-      onAfterBid();
+      const bidId = res?.id || res?.data?.id || null;
+      onAfterBid(bidId, bidAmount);
       onClose();
     } catch (e: any) {
       // 400 might mean bid already exists or is valid

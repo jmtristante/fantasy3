@@ -86,7 +86,12 @@ export default function Market() {
     if (!leagueId || !item.myBidId) return;
     try {
       await fantasyAPI.cancelBid(leagueId, item.id, item.myBidId);
-      queryClient.invalidateQueries({ queryKey: ['market', leagueId] });
+      queryClient.setQueryData(['market', leagueId], (old: any) => {
+        if (!old) return old;
+        const arr = extractArray(old);
+        return arr.map((m: any) => m.id === item.id ? { ...m, bid: null } : m);
+      });
+      queryClient.removeQueries({ queryKey: ['teamMoney', userTeamId] });
     } catch (e: any) {
       // Ignore cancel errors
     }
@@ -467,8 +472,20 @@ export default function Market() {
         item={bidModal.item}
         isModifying={bidModal.isModifying}
         currentBid={0}
-        onAfterBid={() => {
-          queryClient.invalidateQueries({ queryKey: ['market', leagueId] });
+        onAfterBid={(bidId?: string, amount?: number) => {
+          if (bidModal) {
+            queryClient.setQueryData(['market', leagueId], (old: any) => {
+              if (!old) return old;
+              const items = Array.isArray(old) ? old : (old?.data && Array.isArray(old.data) ? old.data : null);
+              if (!items) return old;
+              const updated = items.map((m: any) => m.id === bidModal.item.id
+                ? { ...m, bid: { id: bidId || 'temp', money: amount || 0, status: 'pending' } }
+                : m
+              );
+              return Array.isArray(old) ? updated : { ...old, data: updated };
+            });
+          }
+          queryClient.removeQueries({ queryKey: ['teamMoney', userTeamId] });
           setBidModal(null);
         }}
       />
