@@ -203,6 +203,11 @@ export default function Busqueda() {
               <div className="flex items-center gap-1.5 mt-0.5">
                 {p.teamBadge && <img src={p.teamBadge} alt="" className="w-3 h-3 rounded-full object-contain" />}
                 <span className="text-[10px] text-gray-500 truncate">{p.teamName}</span>
+                {p.owner && (
+                  <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
+                    {p.owner}
+                  </span>
+                )}
               </div>
             </div>
             <div className="text-right flex-shrink-0">
@@ -217,11 +222,6 @@ export default function Busqueda() {
             {p.tendencia != null && (
               <div className="flex-shrink-0">
                 <TrendBadge tendencia={p.tendencia} />
-              </div>
-            )}
-            {p.owner && (
-              <div className="text-[9px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded flex-shrink-0">
-                {p.owner}
               </div>
             )}
           </button>
