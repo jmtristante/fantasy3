@@ -381,8 +381,9 @@ export default function MiAlineacion() {
         </div>
       </div>
 
-      {/* Pitch */}
-      <div className="bg-gradient-to-b from-green-700 to-green-900 rounded-xl p-4 relative overflow-hidden">
+      <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
+        {/* Pitch */}
+        <div className="bg-gradient-to-b from-green-700 to-green-900 rounded-xl p-4 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-full" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
@@ -405,7 +406,7 @@ export default function MiAlineacion() {
       </div>
 
       {/* Player bench by position */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:space-y-3">
         {[4, 3, 2, 1].map((posId) => {
           const cfg = POS_CONFIG[posId];
           const players = teamPlayers.filter((pt: any) => pt.playerMaster?.positionId === posId);
@@ -460,8 +461,12 @@ export default function MiAlineacion() {
                             {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
                             {nextOppName && (
                               <span className="flex items-center gap-1">
-                                {nextOppBadge && <img src={nextOppBadge} alt="" className="w-3 h-3 rounded-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
-                                vs {nextOppName}
+                                vs{' '}
+                                {nextOppBadge ? (
+                                  <img src={nextOppBadge} alt="" className="w-3 h-3 rounded-full object-contain" />
+                                ) : (
+                                  <span>{nextOppName}</span>
+                                )}
                               </span>
                             )}
                           </div>
@@ -476,6 +481,7 @@ export default function MiAlineacion() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* Player selection modal */}
