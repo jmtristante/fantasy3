@@ -502,20 +502,20 @@ export default function MiAlineacion() {
               {teamPlayers
                 .filter((pt: any) => {
                   const posId = selectedSlot.position === 'goalkeeper' ? 1 : selectedSlot.position === 'defender' ? 2 : selectedSlot.position === 'midfield' ? 3 : 4;
-                  return pt.playerMaster?.positionId === posId;
+                  if (pt.playerMaster?.positionId !== posId) return false;
+                  const ptId = pt.playerTeamId || pt.id;
+                  return !isPlayerInLineup(lineup, ptId);
                 })
                 .map((pt: any) => {
                   const ptId = pt.playerTeamId || pt.id;
                   const pm = pt.playerMaster;
                   const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
-                  const inLineup = isPlayerInLineup(lineup, ptId);
                   return (
-                    <button key={ptId} disabled={inLineup}
+                    <button key={ptId}
                       onClick={() => handlePlayerSelect(pt, selectedSlot.position)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${inLineup ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-gray-800">
                       <img src={img} alt="" className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
                       <span className="text-xs font-medium text-gray-900 dark:text-white flex-1 text-left">{pm?.nickname || pm?.name}</span>
-                      {inLineup && <span className="text-[9px] text-gray-400">en campo</span>}
                     </button>
                   );
                 })}
