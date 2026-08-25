@@ -313,15 +313,15 @@ export default function MiAlineacion() {
           }}
         >
           {img ? (
-            <img src={img} alt="" className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
+            <img src={img} alt="" className="w-14 h-14 lg:w-20 lg:h-20 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           ) : (
-            <div className="w-14 h-14 rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center">
+            <div className="w-14 h-14 lg:w-20 lg:h-20 rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center">
               <span className="text-lg text-white/50">+</span>
             </div>
           )}
           {!isEmpty && badge && (
-            <img src={badge} alt="" className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white shadow object-contain"
+            <img src={badge} alt="" className="absolute -bottom-0.5 -right-0.5 w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-white shadow object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           )}
           {!isEmpty && (
@@ -331,7 +331,7 @@ export default function MiAlineacion() {
             >✕</button>
           )}
         </div>
-        <span className="text-[10px] font-semibold text-white drop-shadow text-center leading-tight max-w-[72px] truncate">
+        <span className="text-[10px] lg:text-xs font-semibold text-white drop-shadow text-center leading-tight max-w-[72px] lg:max-w-[90px] truncate">
           {name || 'Vacío'}
         </span>
       </div>
@@ -389,14 +389,14 @@ export default function MiAlineacion() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-t-0 border-white rounded-t-none" />
         </div>
-        <div className="relative space-y-6 py-4">
-          <div className="flex justify-center gap-4">
+        <div className="relative space-y-6 lg:space-y-8 py-4">
+          <div className="flex justify-center gap-4 lg:gap-6">
             {Array.from({ length: req?.strikers || 0 }).map((_, i) => renderSlot(lineup.striker[i] || null, 'striker', i))}
           </div>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 lg:gap-6">
             {Array.from({ length: req?.midfielders || 0 }).map((_, i) => renderSlot(lineup.midfield[i] || null, 'midfield', i))}
           </div>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 lg:gap-6">
             {Array.from({ length: req?.defenders || 0 }).map((_, i) => renderSlot(lineup.defender[i] || null, 'defender', i))}
           </div>
           <div className="flex justify-center">
@@ -437,6 +437,7 @@ export default function MiAlineacion() {
                     const nextOppName = nextOpponents.names.get(teamId);
                     const nextOppId = nextOpponents.ids.get(teamId);
                     const nextOppBadge = nextOppId ? teamBadgeMap.get(nextOppId) : null;
+                    const avgPoints = pm.lastStats?.length ? (pm.lastStats.reduce((s: number, st: any) => s + (st.totalPoints || 0), 0) / pm.lastStats.length).toFixed(1) : null;
                     return (
                       <button key={ptId}
                         onClick={() => {
@@ -458,6 +459,7 @@ export default function MiAlineacion() {
                         <div className="flex-1 text-left min-w-0">
                           <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{pm.nickname || pm.name}</div>
                           <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                            {avgPoints != null && <span className="text-gray-600 dark:text-gray-400">{avgPoints} pts</span>}
                             {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
                             {nextOppName && (
                               <span className="flex items-center gap-1">
