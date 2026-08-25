@@ -5,6 +5,7 @@ import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
+import { usePreciosActuales } from '../contexts/PreciosActualesContext';
 import toast from 'react-hot-toast';
 
 function extractArray(res: any): any[] {
@@ -65,6 +66,7 @@ export default function MiAlineacion() {
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [expandedPositions, setExpandedPositions] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
+  const { scrapingPlayers, mapeo } = usePreciosActuales();
 
   const { data: standings } = useQuery({
     queryKey: ['standings', leagueId],
@@ -82,6 +84,61 @@ export default function MiAlineacion() {
     });
     return found ? String(found.id || found.team?.id) : null;
   }, [standings, laligaUser]);
+
+  const { data: currentWeekData, isLoading: loadingWeek } = useQuery({
+    queryKey: ['currentWeek'],
+    queryFn: () => fantasyAPI.getCurrentWeek(),
+  });
+  const currentWeek = currentWeekData?.weekNumber ?? currentWeekData?.data?.weekNumber ?? 1;
+
+  const { data: nextWeekCalendar } = useQuery({
+    queryKey: ['matchday', currentWeek + 1],
+    queryFn: () => fantasyAPI.getMatchday(currentWeek + 1),
+    staleTime: 60_000,
+  });
+
+  const { data: teamsMasterData } = useQuery({
+    queryKey: ['teamsMaster'],
+    queryFn: () => fantasyAPI.getTeamsMaster(),
+    staleTime: 5 * 60_000,
+  });
+
+  const teamNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    extractArray(teamsMasterData).forEach((t: any) => {
+      map.set(String(t.id), t.shortName || t.name);
+    });
+    return map;
+  }, [teamsMasterData]);
+
+  const nextOpponents = useMemo(() => {
+    const matches = extractArray(nextWeekCalendar);
+    const map = new Map<string, string>();
+    matches.forEach((m: any) => {
+      const localId = String(m.local?.id || m.localId);
+      const visitorId = String(m.visitor?.id || m.visitorId);
+      const localOpp = teamNameMap.get(visitorId) || m.visitor?.shortName || m.visitor?.name || '?';
+      const visitorOpp = teamNameMap.get(localId) || m.local?.shortName || m.local?.name || '?';
+      map.set(localId, localOpp);
+      map.set(visitorId, visitorOpp);
+    });
+    return map;
+  }, [nextWeekCalendar, teamNameMap]);
+
+  const { data: allPlayersData } = useQuery({
+    queryKey: ['allPlayers'],
+    queryFn: () => fantasyAPI.getAllPlayers(),
+    staleTime: 300_000,
+  });
+
+  const playerTeamMap = useMemo(() => {
+    const map = new Map<string, string>();
+    extractArray(allPlayersData).forEach((p: any) => {
+      const teamId = String(p.teamId || p.team?.id || '');
+      if (teamId) map.set(String(p.id), teamId);
+    });
+    return map;
+  }, [allPlayersData]);
 
   const { data: currentLineupData, isLoading: loadingLineup } = useQuery({
     queryKey: ['currentLineup', userTeamId],
@@ -358,6 +415,10 @@ export default function MiAlineacion() {
                     const ptId = pt.playerTeamId || pt.id;
                     const inLineup = isPlayerInLineup(lineup, ptId);
                     const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
+                    const jugadorId = mapeo.get(Number(pm.id));
+                    const probabilidad = jugadorId != null ? scrapingPlayers.get(jugadorId)?.probabilidad ?? null : null;
+                    const teamId = playerTeamMap.get(String(pm.id)) || String(pm.teamId || pt.teamId || pt.team?.id || '');
+                    const nextOpp = nextOpponents.get(teamId);
                     return (
                       <button key={ptId}
                         onClick={() => {
@@ -378,7 +439,10 @@ export default function MiAlineacion() {
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                         <div className="flex-1 text-left min-w-0">
                           <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{pm.nickname || pm.name}</div>
-                          <div className="text-[10px] text-gray-500">{pm.team?.shortName || pm.team?.name || ''}</div>
+                          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                            {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
+                            {nextOpp && <span>vs {nextOpp}</span>}
+                          </div>
                         </div>
                         {inLineup && <span className="text-[9px] font-semibold bg-indigo-500 text-white px-1.5 py-0.5 rounded">En campo</span>}
                         {!inLineup && <span className="text-[10px] text-gray-400">{pm.points || 0} pts</span>}
