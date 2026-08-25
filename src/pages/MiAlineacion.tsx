@@ -111,18 +111,27 @@ export default function MiAlineacion() {
     return map;
   }, [teamsMasterData]);
 
+  const teamBadgeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    extractArray(teamsMasterData).forEach((t: any) => {
+      if (t.badgeColor) map.set(String(t.id), t.badgeColor);
+    });
+    return map;
+  }, [teamsMasterData]);
+
   const nextOpponents = useMemo(() => {
     const matches = extractArray(nextWeekCalendar);
-    const map = new Map<string, string>();
+    const nameMap = new Map<string, string>();
+    const idMap = new Map<string, string>();
     matches.forEach((m: any) => {
       const localId = String(m.local?.id || m.localId);
       const visitorId = String(m.visitor?.id || m.visitorId);
-      const localOpp = teamNameMap.get(visitorId) || m.visitor?.shortName || m.visitor?.name || '?';
-      const visitorOpp = teamNameMap.get(localId) || m.local?.shortName || m.local?.name || '?';
-      map.set(localId, localOpp);
-      map.set(visitorId, visitorOpp);
+      nameMap.set(localId, teamNameMap.get(visitorId) || '?');
+      nameMap.set(visitorId, teamNameMap.get(localId) || '?');
+      idMap.set(localId, visitorId);
+      idMap.set(visitorId, localId);
     });
-    return map;
+    return { names: nameMap, ids: idMap };
   }, [nextWeekCalendar, teamNameMap]);
 
   const { data: allPlayersData } = useQuery({
@@ -285,6 +294,8 @@ export default function MiAlineacion() {
     const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
     const name = pm?.nickname || pm?.name;
     const isEmpty = !player;
+    const playerTeamId = playerTeamMap.get(String(pm?.id)) || '';
+    const badge = teamBadgeMap.get(playerTeamId);
 
     return (
       <div
@@ -308,6 +319,10 @@ export default function MiAlineacion() {
             <div className="w-14 h-14 rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center">
               <span className="text-lg text-white/50">+</span>
             </div>
+          )}
+          {!isEmpty && badge && (
+            <img src={badge} alt="" className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white shadow object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           )}
           {!isEmpty && (
             <button
@@ -418,7 +433,9 @@ export default function MiAlineacion() {
                     const jugadorId = mapeo.get(Number(pm.id));
                     const probabilidad = jugadorId != null ? scrapingPlayers.get(jugadorId)?.probabilidad ?? null : null;
                     const teamId = playerTeamMap.get(String(pm.id)) || String(pm.teamId || pt.teamId || pt.team?.id || '');
-                    const nextOpp = nextOpponents.get(teamId);
+                    const nextOppName = nextOpponents.names.get(teamId);
+                    const nextOppId = nextOpponents.ids.get(teamId);
+                    const nextOppBadge = nextOppId ? teamBadgeMap.get(nextOppId) : null;
                     return (
                       <button key={ptId}
                         onClick={() => {
@@ -441,7 +458,12 @@ export default function MiAlineacion() {
                           <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{pm.nickname || pm.name}</div>
                           <div className="flex items-center gap-2 text-[10px] text-gray-500">
                             {probabilidad != null && <span className={`font-semibold ${probabilidad >= 80 ? 'text-green-600 dark:text-green-400' : probabilidad >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500'}`}>{probabilidad}%</span>}
-                            {nextOpp && <span>vs {nextOpp}</span>}
+                            {nextOppName && (
+                              <span className="flex items-center gap-1">
+                                {nextOppBadge && <img src={nextOppBadge} alt="" className="w-3 h-3 rounded-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+                                vs {nextOppName}
+                              </span>
+                            )}
                           </div>
                         </div>
                         {inLineup && <span className="text-[9px] font-semibold bg-indigo-500 text-white px-1.5 py-0.5 rounded">En campo</span>}
