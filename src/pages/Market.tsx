@@ -78,7 +78,8 @@ export default function Market() {
 
   const userMoney = useMemo(() => {
     const raw = teamMoneyData?.data ?? teamMoneyData;
-    return typeof raw === 'number' ? raw : (raw?.teamMoney ?? raw?.money ?? 0);
+    const money = typeof raw === 'number' ? raw : (raw?.teamMoney ?? raw?.money ?? raw?.amount ?? 0);
+    return money;
   }, [teamMoneyData]);
 
   const handleCancelBid = async (item: any) => {
@@ -166,6 +167,18 @@ export default function Market() {
     return items.reduce((sum: number, item: any) => sum + (item.myBid || 0), 0);
   }, [items]);
 
+  const userTeamValue = useMemo(() => {
+    const teams = extractArray(standings);
+    for (const t of teams) {
+      const uid = t.userId || t.team?.manager?.id || t.team?.userId;
+      if (uid && laligaUser?.userId && String(uid) === String(laligaUser.userId)) {
+        return t.teamValue || t.team?.teamValue || 0;
+      }
+    }
+    return 0;
+  }, [standings, laligaUser]);
+
+  const maxBid = userMoney + Math.floor(userTeamValue * 0.2) - totalBids;
   const remainingMoney = userMoney - totalBids;
 
   const filtered = useMemo(() => {
@@ -198,25 +211,42 @@ export default function Market() {
       </div>
 
       {/* Money summary */}
-      {userMoney > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3">
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Wallet className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-500">Cartera:</span>
-              <span className="font-bold text-gray-900 dark:text-white">{formatMoney(userMoney)}</span>
+      {userTeamId && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-gray-500 uppercase">Cartera</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(userMoney)}</span>
             </div>
             {totalBids > 0 && (
               <>
-                <span className="text-gray-300">|</span>
-                <div>
-                  <span className="text-gray-500">Pujas: </span>
-                  <span className="font-semibold text-orange-600 dark:text-orange-400">-{formatMoney(totalBids)}</span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">Pujas</span>
+                  <span className="text-lg font-bold text-orange-600 dark:text-orange-400">-{formatMoney(totalBids)}</span>
                 </div>
-                <span className="text-gray-300">|</span>
-                <div>
-                  <span className="text-gray-500">Disponible: </span>
-                  <span className={`font-bold ${remainingMoney >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{formatMoney(remainingMoney)}</span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">Disponible</span>
+                  <span className={`text-lg font-bold ${remainingMoney >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{formatMoney(remainingMoney)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">Puja máx</span>
+                  <span className={`text-lg font-bold ${maxBid >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}>{formatMoney(maxBid)}</span>
+                </div>
+              </>
+            )}
+            {totalBids === 0 && (
+              <>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">Valor equipo</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(userTeamValue)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">20% valor</span>
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatMoney(Math.floor(userTeamValue * 0.2))}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 uppercase">Puja máx</span>
+                  <span className={`text-lg font-bold ${maxBid >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}>{formatMoney(maxBid)}</span>
                 </div>
               </>
             )}
