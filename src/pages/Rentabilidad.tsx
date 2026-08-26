@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, Spinner } from '@heroui/react';
 import { Search } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { fetchRentabilidad } from '../services/rentabilidad';
 import { loadRentabilidadFromView } from '../services/rentabilidadCache';
+import { fantasyAPI } from '../services/api';
 import TrendBadge from '../components/Common/TrendBadge';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 import LineChartSVG from '../components/Rentabilidad/LineChartSVG';
@@ -16,15 +17,45 @@ function formatMoney(v: number) {
 
 const FRIEND_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#db2777', '#65a30d'];
 
+// Background check: compare last_activity_at with latest activity
+let lastRefreshCheck = 0;
+async function checkAndRefreshIfNeeded(leagueId: string) {
+  const now = Date.now();
+  if (now - lastRefreshCheck < 60_000) return; // Don't check more than once per minute
+  lastRefreshCheck = now;
+  try {
+    const activity = await fantasyAPI.getLeagueActivity(leagueId, 0);
+    const items = Array.isArray(activity) ? activity : (activity as any)?.data || [];
+    if (items.length === 0) return;
+    const latestActivity = items[0]?.createdAt;
+    if (!latestActivity) return;
+    // Compare with cached timestamp
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+    const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!SUPABASE_URL || !SUPABASE_KEY) return;
+    const cacheRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/rentabilidad_cache?select=last_activity_at&league_id=eq.${leagueId}&limit=1`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const cacheData = await cacheRes.json();
+    const cachedAt = cacheData?.[0]?.last_activity_at;
+    if (!cachedAt || new Date(latestActivity).getTime() > new Date(cachedAt).getTime()) {
+      console.log('[Rent] New activity detected, refreshing...');
+      // The next page load will recalculate
+    }
+  } catch {}
+}
+
 export default function Rentabilidad() {
   const leagueId = useAuthStore((s) => s.leagueId);
+  const queryClient = useQueryClient();
   const [filtro, setFiltro] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [soloPlantilla, setSoloPlantilla] = useState(true);
   const [visibleAmigos, setVisibleAmigos] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['rentabilidad', leagueId],
     queryFn: async ({ signal }) => {
       // First try to load from Supabase view (instant)
@@ -38,10 +69,17 @@ export default function Rentabilidad() {
       return fetchRentabilidad(leagueId!, signal);
     },
     enabled: !!leagueId,
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000,
     gcTime: Infinity,
     retry: 0,
   });
+
+  const handleRefresh = async () => {
+    console.log('[Rent] Manual refresh triggered');
+    queryClient.removeQueries({ queryKey: ['rentabilidad', leagueId] });
+    await fetchRentabilidad(leagueId!);
+    queryClient.invalidateQueries({ queryKey: ['rentabilidad', leagueId] });
+  };
 
   if (isLoading) {
     return <div className="flex justify-center py-16"><Spinner /></div>;
@@ -56,11 +94,16 @@ export default function Rentabilidad() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rentabilidad</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Cuánto rinde cada jugador frente a lo invertido en fichaje y subidas de cláusula.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rentabilidad</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Cuánto rinde cada jugador frente a lo invertido en fichaje y subidas de cláusula.
+          </p>
+        </div>
+        <button onClick={handleRefresh} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
+          Actualizar
+        </button>
       </div>
 
       {/* Debug: GROUP BY amigo, jugador */}
