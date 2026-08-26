@@ -26,6 +26,7 @@ interface AuthState {
   laligaUser: LaLigaUser | null;
   leagueId: string | null;
   leagueName: string | null;
+  inflightRefresh: Promise<string | null> | null;
 
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
@@ -34,6 +35,7 @@ interface AuthState {
   logoutLaLiga: () => Promise<void>;
   setLeague: (id: string, name: string) => void;
   getBearerToken: () => string | null;
+  refreshToken: () => Promise<string | null>;
 }
 
 async function fetchLaligaProfile(token: string): Promise<LaLigaUser | null> {
@@ -197,6 +199,87 @@ export const useAuthStore = create<AuthState>()(
           return null;
         }
         return laligaTokens.access_token;
+      },
+
+      refreshToken: async () => {
+        const existing = get().inflightRefresh;
+        if (existing) return existing;
+
+        const promise = (async () => {
+          try {
+            const state = get();
+            const refreshTokenValue = state.laligaTokens?.refresh_token;
+            if (!refreshTokenValue) throw new Error('No refresh token');
+
+            const CLIENT_ID = import.meta.env.VITE_LALIGA_CLIENT_ID || '6457fa17-1224-416a-b21a-ee6ce76e9bc0';
+            const TOKEN_ENDPOINT = import.meta.env.VITE_LALIGA_TOKEN_ENDPOINT || 'https://login.laliga.es/laligadspprob2c.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN';
+
+            const params = new URLSearchParams({
+              grant_type: 'refresh_token',
+              refresh_token: refreshTokenValue,
+              client_id: CLIENT_ID,
+              scope: 'openid offline_access',
+            });
+
+            const response = await fetch(TOKEN_ENDPOINT, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              },
+              body: params.toString(),
+            });
+
+            if (!response.ok) {
+              if (response.status === 400 || response.status === 401) {
+                throw new Error('invalid_grant');
+              }
+              throw new Error(`Token refresh failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (!result.id_token) throw new Error('No id_token received');
+
+            const newTokens: LaLigaTokens = {
+              access_token: result.id_token || result.access_token,
+              id_token: result.id_token,
+              refresh_token: result.refresh_token || refreshTokenValue,
+              expires_on: Math.floor(Date.now() / 1000) + (result.id_token_expires_in || result.expires_in || 86400),
+            };
+
+            // Save to Supabase
+            try {
+              await saveLaLigaSession({
+                access_token: newTokens.access_token,
+                id_token: newTokens.id_token,
+                refresh_token: newTokens.refresh_token,
+                expires_on: newTokens.expires_on,
+                laliga_user_id: state.laligaUser?.userId,
+                laliga_username: state.laligaUser?.username,
+              });
+            } catch {}
+
+            set({ laligaTokens: newTokens });
+            return newTokens.access_token;
+          } catch (error: any) {
+            if (error.message?.includes('invalid_grant')) {
+              // Refresh token expired - clear it but don't logout yet
+              const state = get();
+              if (state.laligaTokens) {
+                set({ laligaTokens: { ...state.laligaTokens, refresh_token: undefined } });
+              }
+            }
+            throw error;
+          }
+        })();
+
+        set({ inflightRefresh: promise });
+        try {
+          const result = await promise;
+          return result;
+        } finally {
+          set({ inflightRefresh: null });
+        }
       },
     }),
     {
