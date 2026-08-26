@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Spinner } from '@heroui/react';
 import { Search } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { fetchRentabilidad } from '../services/rentabilidad';
+import { loadRentabilidadFromView } from '../services/rentabilidadCache';
 import TrendBadge from '../components/Common/TrendBadge';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 import LineChartSVG from '../components/Rentabilidad/LineChartSVG';
@@ -25,9 +26,21 @@ export default function Rentabilidad() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['rentabilidad', leagueId],
-    queryFn: ({ signal }) => fetchRentabilidad(leagueId!, signal),
+    queryFn: async ({ signal }) => {
+      // First try to load from Supabase view (instant)
+      const viewData = await loadRentabilidadFromView(leagueId!);
+      if (viewData && viewData.miembros.length > 0) {
+        console.log('[Rent] Loaded from view');
+        return { miembros: viewData.miembros, serieRentabilidad: viewData.serieRentabilidad, debugPuntos: [], debugGroupByArray: [] };
+      }
+      // Fall back to full calculation
+      console.log('[Rent] View empty, calculating...');
+      return fetchRentabilidad(leagueId!, signal);
+    },
     enabled: !!leagueId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: 0,
   });
 
   if (isLoading) {
@@ -37,7 +50,8 @@ export default function Rentabilidad() {
     return <div className="text-center py-16"><p className="text-red-500">Error al calcular rentabilidad</p></div>;
   }
 
-  const { miembros, serieRentabilidad } = data;
+  const { miembros, serieRentabilidad, debugPuntos, debugGroupByArray } = data;
+  console.log('[Rent] serieRentabilidad:', serieRentabilidad?.fechas?.length, 'amigos:', serieRentabilidad?.amigos?.length);
   const miembroActual = filtro ? miembros.find((m: any) => m.id === Number(filtro)) : null;
 
   return (
@@ -48,6 +62,78 @@ export default function Rentabilidad() {
           Cuánto rinde cada jugador frente a lo invertido en fichaje y subidas de cláusula.
         </p>
       </div>
+
+      {/* Debug: GROUP BY amigo, jugador */}
+      {debugGroupByArray && debugGroupByArray.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-500 uppercase">
+            Debug: SELECT amigo, jugador, SUM(pts) GROUP BY amigo, jugador
+          </div>
+          <div className="max-h-[300px] overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="px-3 py-1.5 text-left text-gray-500">Amigo</th>
+                  <th className="px-3 py-1.5 text-left text-gray-500">Jugador</th>
+                  <th className="px-3 py-1.5 text-center text-gray-500">Jornadas</th>
+                  <th className="px-3 py-1.5 text-right text-gray-500">Total pts</th>
+                  <th className="px-3 py-1.5 text-right text-gray-500">Dinero</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {debugGroupByArray.map((d: any, i: number) => (
+                  <tr key={i}>
+                    <td className="px-3 py-1 text-gray-900 dark:text-white">{d.friend}</td>
+                    <td className="px-3 py-1 text-gray-700 dark:text-gray-300">{d.player}</td>
+                    <td className="px-3 py-1 text-center text-gray-600 dark:text-gray-400">{d.weeks}j</td>
+                    <td className="px-3 py-1 text-right font-bold text-gray-900 dark:text-white">{d.totalPts}</td>
+                    <td className="px-3 py-1 text-right font-semibold text-green-600 dark:text-green-400">{formatMoney(d.totalPts * 100_000)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Debug table */}
+      {debugPuntos && debugPuntos.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-500 uppercase">
+            Debug: Puntos por amigo/jugador/jornada
+          </div>
+          <div className="max-h-[400px] overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="px-3 py-1.5 text-left text-gray-500">Amigo</th>
+                  <th className="px-3 py-1.5 text-left text-gray-500">Jugador</th>
+                  <th className="px-3 py-1.5 text-center text-gray-500">Jornada</th>
+                  <th className="px-3 py-1.5 text-right text-gray-500">Pts</th>
+                  <th className="px-3 py-1.5 text-center text-gray-500">En plantilla</th>
+                  <th className="px-3 py-1.5 text-center text-gray-500">Compra J</th>
+                  <th className="px-3 py-1.5 text-center text-gray-500">Venta J</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {debugPuntos.filter((d: any) => d.pts !== 0).map((d: any, i: number) => (
+                  <tr key={i} className={d.owned ? 'bg-green-50 dark:bg-green-900/10' : ''}>
+                    <td className="px-3 py-1 text-gray-900 dark:text-white">{d.friend}</td>
+                    <td className="px-3 py-1 text-gray-700 dark:text-gray-300">{d.player}</td>
+                    <td className="px-3 py-1 text-center text-gray-600 dark:text-gray-400">J{d.week}</td>
+                    <td className="px-3 py-1 text-right font-semibold text-gray-900 dark:text-white">{d.pts}</td>
+                    <td className="px-3 py-1 text-center">
+                      {d.owned ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-400">✗</span>}
+                    </td>
+                    <td className="px-3 py-1 text-center text-gray-500">{d.compraWeek != null ? `J${d.compraWeek}` : '—'}</td>
+                    <td className="px-3 py-1 text-center text-gray-500">{d.ventaWeek != null ? `J${d.ventaWeek}` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Member filter buttons */}
       <div className="flex flex-wrap gap-2">

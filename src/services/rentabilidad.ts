@@ -9,6 +9,7 @@ import {
   getMapeo,
   isSupabaseConfigured,
 } from './supabaseScraping';
+import { loadRentabilidadFromView, upsertRentabilidadPlayers, updateCacheTimestamp } from './rentabilidadCache';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CMP = `/v1/competition/${import.meta.env.VITE_COMPETITION_ID || '1'}`;
@@ -139,14 +140,26 @@ async function resolverMapeo({ laligaPlayers, signal }) {
   return map;
 }
 
-async function getAllActivity(leagueId, maxPages = 25) {
+async function getAllActivity(leagueId, maxPages = 25, since?: string | null) {
   const items = [];
   for (let page = 0; page < maxPages; page++) {
     const res = await fantasyAPI.getLeagueActivity(leagueId, page);
     const arr = Array.isArray(res) ? res : res?.data || [];
     if (!arr.length) break;
-    items.push(...arr);
-    await sleep(200);
+    // If since is provided, stop when we reach older entries
+    if (since) {
+      const sinceTs = new Date(since).getTime();
+      let foundOlder = false;
+      for (const item of arr) {
+        const itemTs = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+        if (itemTs < sinceTs) { foundOlder = true; break; }
+        items.push(item);
+      }
+      if (foundOlder) break;
+    } else {
+      items.push(...arr);
+    }
+    await sleep(100);
   }
   return items;
 }
@@ -186,6 +199,8 @@ function unionUserId(a) {
  *  - Serie histórica = cash (100M + movimientos + premios) + plantilla día a día.
  */
 export async function fetchRentabilidad(leagueId, signal) {
+  console.log('[Rent] fetchRentabilidad called for league:', leagueId);
+
   const standingRes = await fantasyAPI.getLeagueRanking(leagueId);
   const rawMiembros = Array.isArray(standingRes) ? standingRes : standingRes?.data || [];
   // Normalizar: añadir userId desde team.manager.id (como hace adaptStandingResponse)
@@ -207,6 +222,38 @@ export async function fetchRentabilidad(leagueId, signal) {
   const allPlayersRes = await fantasyAPI.getAllPlayers();
   const allPlayers = Array.isArray(allPlayersRes) ? allPlayersRes : allPlayersRes?.data || [];
   const allPlayersMap = new Map(allPlayers.map((p) => [String(p.id), p]));
+
+  // Mapa de puntos por jugador por jornada (playerMasterId -> week -> points)
+  const playerWeekPts = new Map<string, Map<number, number>>();
+  try {
+    const currentWeekRes = await fantasyAPI.getCurrentWeek();
+    const currentWeek = currentWeekRes?.weekNumber ?? currentWeekRes?.data?.weekNumber ?? 1;
+    // Parallelize match stats calls in chunks of 4
+    const weekChunks = [];
+    for (let i = 1; i <= currentWeek; i += 4) {
+      weekChunks.push(Array.from({ length: Math.min(4, currentWeek - i + 1) }, (_, j) => i + j));
+    }
+    for (const chunk of weekChunks) {
+      const results = await Promise.all(chunk.map((w) => fantasyAPI.getMatchStats(w).catch(() => null)));
+      for (const stats of results) {
+        if (!stats) continue;
+        const matches = Array.isArray(stats) ? stats : stats?.data || [];
+        for (const m of matches) {
+          for (const team of [m.local, m.visitor]) {
+            if (!team?.players) continue;
+            for (const p of team.players) {
+              const id = String(p.id);
+              const pts = p.weekPoints || 0;
+              if (pts !== 0) {
+                if (!playerWeekPts.has(id)) playerWeekPts.set(id, new Map());
+                playerWeekPts.get(id)!.set(chunk[results.indexOf(stats)], pts);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {}
 
   const activity = await getAllActivity(leagueId);
 
@@ -369,17 +416,28 @@ export async function fetchRentabilidad(leagueId, signal) {
     return s;
   };
 
+  // Helper: convert timestamp to approximate week number
+  const tsToWeek = (ts: number): number => {
+    const startMs = new Date(inicioIso).getTime();
+    const diffMs = ts - startMs;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return Math.max(1, Math.ceil(diffDays / 7));
+  };
+
   for (const a of activity) {
     const pmId = a.playerMasterId != null ? Number(a.playerMasterId) : null;
     if (pmId == null) continue;
     const t = a.activityTypeId;
     const amount = num(a.amount);
+    const ts = a.createdAt ? new Date(a.createdAt).getTime() : null;
+    const week = ts != null ? tsToWeek(ts) : null;
 
     if (t === TIPO_VENTA) {
       if (a.user1Id != null) {
         const s = stub(a.user1Id, pmId);
         s.devuelto += amount;
         s.ventas += amount;
+        if (week != null) s.ventaWeek = week;
       }
     } else if (t === TIPO_COMPRA_MANAGER) {
       // Traspaso / compra: user1 paga, user2 (si hay) cobra.
@@ -388,11 +446,13 @@ export async function fetchRentabilidad(leagueId, signal) {
         s.invertido += amount;
         s.fichaje += amount;
         s.tuvoCompra = true;
+        if (week != null && (s.compraWeek == null || week < s.compraWeek)) s.compraWeek = week;
       }
       if (a.user2Id != null) {
         const s = stub(a.user2Id, pmId);
         s.devuelto += amount;
         s.ventas += amount;
+        if (week != null) s.ventaWeek = week;
       }
     } else if (t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) {
       // 31 fichaje mercado · 32 compra por cláusula → coste de adquisición (fichaje).
@@ -401,6 +461,7 @@ export async function fetchRentabilidad(leagueId, signal) {
         s.invertido += amount;
         s.fichaje += amount;
         s.tuvoCompra = true;
+        if (week != null && (s.compraWeek == null || week < s.compraWeek)) s.compraWeek = week;
       }
     }
     // Resto de tipos (4 blindaje, 6 premio, 7 alineación, 9 unión…): no afectan a fichaje.
@@ -415,6 +476,8 @@ export async function fetchRentabilidad(leagueId, signal) {
       if (existing?.tuvoCompra) continue;
       const s = stub(d.mid, p.playerMasterId);
       if (s.fichaje > 0 || s.tuvoCompra) continue;
+      // Si no tiene compra conocida pero está en plantilla, asumir desde jornada 1
+      if (s.compraWeek == null) s.compraWeek = 1;
       const j = s.jugador_id;
       const mv = mvMap.get(k) ?? 0;
       const fechaDraft = d.joinTs || inicioIso;
@@ -443,6 +506,8 @@ export async function fetchRentabilidad(leagueId, signal) {
       mv;
     s.invertido += entrada;
     s.fichaje += entrada;
+    // Si no tiene compra conocida, asumir desde jornada 1
+    if (s.compraWeek == null) s.compraWeek = 1;
   }
 
   // Valor actual de los que siguen en plantilla (devuelto) + puntos ganados (100k por punto).
@@ -457,14 +522,6 @@ export async function fetchRentabilidad(leagueId, signal) {
       const mv = mvMap.get(k) ?? null;
       const valor = (j != null ? latestPrices.get(j)?.valor : null) ?? mv;
       if (valor != null) s.devuelto += valor;
-      // Puntos ganados mientras estuvo en plantilla
-      const laLiga = allPlayersMap.get(String(p.playerMasterId));
-      const lastStats = laLiga?.lastStats || [];
-      const enPlantilla = true;
-      if (enPlantilla && lastStats.length > 0) {
-        const puntosTotales = lastStats.reduce((sum: number, st: any) => sum + (st.totalPoints || 0), 0);
-        s.ganado_puntos = (s.ganado_puntos || 0) + puntosTotales * PUNTO_VALOR;
-      }
     }
   }
 
@@ -545,13 +602,126 @@ export async function fetchRentabilidad(leagueId, signal) {
     inicioIso,
   });
 
-  return {
+  // Build debug table: exact same data as standings - fetch lineup per team per week
+  const debugPuntos: any[] = [];
+  try {
+    const currentWeekRes2 = await fantasyAPI.getCurrentWeek();
+    const currentWeek2 = currentWeekRes2?.weekNumber ?? currentWeekRes2?.data?.weekNumber ?? 1;
+    for (const d of detalle) {
+      const friend = resumen.find((r: any) => r.id === d.mid);
+      const friendName = friend?.nombre || String(d.mid);
+      for (let w = 1; w <= currentWeek2; w++) {
+        try {
+          const lineup = await fantasyAPI.getTeamLineup(String(d.teamId), w);
+          const data = lineup?.data || lineup;
+          const formation = data?.formation;
+          if (!formation) continue;
+          const posKeys = ['goalkeeper', 'defender', 'midfield', 'striker'];
+          for (const pk of posKeys) {
+            if (!Array.isArray(formation[pk])) continue;
+            for (const p of formation[pk]) {
+              const pm = p?.playerMaster;
+              if (!pm) continue;
+              const pts = pm.lastStats?.find((s: any) => s.weekNumber === w)?.totalPoints ?? p.points ?? 0;
+              debugPuntos.push({
+                friend: friendName,
+                friendMid: d.mid,
+                player: pm.nickname || pm.name || `#${pm.id}`,
+                playerId: Number(pm.id),
+                week: w,
+                pts,
+                owned: true,
+                compraWeek: null,
+                ventaWeek: null,
+              });
+            }
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+  } catch {}
+
+  // GROUP BY amigo, jugador (by ID) → sum(pts)
+  const debugGroupBy = new Map<string, { friend: string; friendMid: number; player: string; playerId: number; totalPts: number; weeks: number }>();
+  for (const d of debugPuntos) {
+    if (d.pts === 0) continue;
+    const key = `${d.friendMid}:${d.playerId}`;
+    const existing = debugGroupBy.get(key);
+    if (existing) {
+      existing.totalPts += d.pts;
+      existing.weeks += 1;
+    } else {
+      debugGroupBy.set(key, { friend: d.friend, friendMid: d.friendMid, player: d.player, playerId: d.playerId, totalPts: d.pts, weeks: 1 });
+    }
+  }
+  const debugGroupByArray = Array.from(debugGroupBy.values()).sort((a, b) => b.totalPts - a.totalPts);
+
+  // Build lookup map: mid:playerId → totalPts (only positive)
+  const ganadoPtsMap = new Map<string, number>();
+  for (const d of debugGroupByArray) {
+    if (d.totalPts > 0) {
+      ganadoPtsMap.set(`${d.friendMid}:${d.playerId}`, d.totalPts);
+    }
+  }
+
+  // Apply ganado_puntos from debugGroupBy to resumen AND porKey stubs
+  const PUNTO_VALOR2 = 100_000;
+  for (const r of resumen) {
+    let total = 0;
+    for (const f of r.filas) {
+      const pts = ganadoPtsMap.get(`${r.id}:${f.player_master_id}`) || 0;
+      f.ganado_puntos = pts * PUNTO_VALOR2;
+      total += f.ganado_puntos;
+      // Also update the porKey stub so it gets saved to the table
+      const k = `${r.id}:${f.player_master_id}`;
+      const s = porKey.get(k);
+      if (s) s.ganado_puntos = f.ganado_puntos;
+    }
+    r.ganado_puntos = total;
+  }
+
+  const result = {
     miembros: resumen,
     serieRentabilidad,
     supabaseOk,
     preciosDiarios,
     ligaInicio: inicioIso,
+    debugPuntos,
+    debugGroupByArray,
   };
+
+  // Save to rentabilidad_players table - ALL players from porKey (current + sold)
+  try {
+    const playersToSave: any[] = [];
+    for (const [k, s] of porKey.entries()) {
+      const [mRaw, pmRaw] = k.split(':');
+      const mid = Number(mRaw);
+      const pmId = Number(pmRaw);
+      const managerName = resumen.find((r: any) => r.id === mid)?.nombre || String(mid);
+      const laLiga = allPlayersMap.get(String(pmId));
+      playersToSave.push({
+        managerId: String(mid),
+        managerName,
+        playerName: laLiga?.nickname || laLiga?.name || `#${pmId}`,
+        playerMasterId: pmId,
+        invertido: s.invertido,
+        fichaje: s.fichaje,
+        ventas: s.ventas,
+        ganado_puntos: s.ganado_puntos || 0,
+        en_plantilla: owners.has(k),
+      });
+    }
+    console.log('[Rent] Saving', playersToSave.length, 'players to rentabilidad_players');
+    await upsertRentabilidadPlayers(leagueId, playersToSave);
+    const lastActivityAt = activity.length > 0 ? activity[0]?.createdAt || null : null;
+    await updateCacheTimestamp(leagueId, lastActivityAt, serieRentabilidad);
+    console.log('[Rent] Saved successfully');
+  } catch (e) {
+    console.log('[Rent] Save error:', e);
+  }
+
+  return result;
 }
 
 function buildSerieHistorica({
