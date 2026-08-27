@@ -1,32 +1,50 @@
-# React + TypeScript + Vite
+# Fantasy LaLiga
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicación web para gestionar tu equipo de Fantasy LaLiga.
 
-Currently, two official plugins are available:
+## Desarrollo local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Servidor web (frontend)
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npx vite --host
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+ disponible en `http://localhost:5173`
+
+### Proxy (API)
+
+El proxy reenvía las peticiones a la API de LaLiga Fantasy. Necesario para el desarrollo local.
+
+```bash
+cd ../LaLigaApp
+node server/index.js
+```
+
+Disponible en `http://localhost:3005`
+
+### Variables de entorno
+
+Copiar `.env.example` a `.env` y rellenar:
+
+```
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=xxx
+VITE_API_BASE_URL=http://localhost:3005
+```
+
+## Stack
+
+- React 19 + TypeScript
+- Vite
+- HeroUI v3
+- Tailwind CSS v4
+- Zustand (estado)
+- React Query (queries)
+- Supabase (auth + datos scraping)
+
+## Despliegue
+
+- **Frontend**: Vercel
+- **Proxy**: Render
+- **Datos**: Supabase
