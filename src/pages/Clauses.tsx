@@ -224,8 +224,9 @@ export default function Clauses() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="space-y-2">
+        {/* Search - full width */}
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -236,120 +237,182 @@ export default function Clauses() {
           />
         </div>
 
-        {/* Show All toggle */}
-        <div className="flex gap-1">
-          <button onClick={() => setShowAll(false)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!showAll ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-            Disponibles
-          </button>
-          <button onClick={() => setShowAll(true)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${showAll ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-            Todas
+        {/* Toggle + Position + Sort row */}
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1 flex-shrink-0">
+            <button onClick={() => setShowAll(false)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!showAll ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+              Disp.
+            </button>
+            <button onClick={() => setShowAll(true)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${showAll ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+              Todas
+            </button>
+          </div>
+
+          <select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} className="filter-select text-xs py-1.5">
+            <option value="all">Pos</option>
+            <option value="1">PO</option>
+            <option value="2">DF</option>
+            <option value="3">MC</option>
+            <option value="4">DL</option>
+          </select>
+
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="filter-select text-xs py-1.5">
+            <option value="clauseValue">Cláusula</option>
+            <option value="marketValue">Valor</option>
+            <option value="points">Puntos</option>
+            <option value="timeRemaining">Tiempo</option>
+          </select>
+
+          <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="filter-select text-xs py-1.5 flex-shrink-0">
+            {sortOrder === 'desc' ? '↓' : '↑'}
           </button>
         </div>
 
-        {/* Position */}
-        <select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} className="filter-select">
-          <option value="all">Todas</option>
-          <option value="1">PO</option>
-          <option value="2">DF</option>
-          <option value="3">MC</option>
-          <option value="4">DL</option>
-        </select>
-
-        {/* Owner */}
-        <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="filter-select">
-          <option value="all">Todos</option>
-          {uniqueOwners.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-
-        {/* Sort */}
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="filter-select">
-          <option value="clauseValue">Cláusula</option>
-          <option value="marketValue">Valor</option>
-          <option value="points">Puntos</option>
-          <option value="timeRemaining">Tiempo</option>
-        </select>
-
-        <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="filter-select flex items-center gap-1">
-          {sortOrder === 'desc' ? '↓ Mayor' : '↑ Menor'}
-        </button>
+        {/* Owner - only show if not "all" owners */}
+        {ownerFilter !== 'all' && (
+          <div className="flex items-center gap-2">
+            <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="filter-select text-xs py-1.5 flex-1">
+              <option value="all">Todos los managers</option>
+              {uniqueOwners.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
+      {/* Table - Desktop */}
       {loading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : (
-        <Card>
-          <Card.Content className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-left">
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 w-12"></th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Jugador</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Pos</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Cláusula</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Valor</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Gap</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Tendencia</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Puntos</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Estado</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Manager</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {filtered.map((c, i) => (
-                  <tr key={i} onClick={() => setSelectedPlayer({ id: c.playerId, images: c.playerImage ? { transparent: { '256x256': c.playerImage } } : undefined })} className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${c.isLocked ? 'opacity-60' : ''}`}>
-                    <td className="px-4 py-2">
-                      {c.playerImage ? (
-                        <img src={c.playerImage} alt="" className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <span className="text-xs text-gray-500">{c.playerName.charAt(0)}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="font-medium text-gray-900 dark:text-white truncate max-w-[180px]">{c.playerName}</div>
-                      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                        {c.teamBadge && <img src={c.teamBadge} alt="" className="w-4 h-4 object-contain" />}
-                        <span className="truncate">{c.teamName}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${POS_COLORS[c.positionId] || ''}`}>{c.position}</span>
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold text-yellow-600 dark:text-yellow-400 tabular-nums">{formatMoney(c.clausulaAmount)}</td>
-                    <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{formatMoney(c.marketValue)}</td>
-                    <td className="px-4 py-2 text-right text-xs tabular-nums">
-                      {c.marketValue > 0 ? (
-                        <span className={`font-medium ${((c.clausulaAmount - c.marketValue) / c.marketValue) > 0.1 ? 'text-red-500' : 'text-green-500'}`}>
-                          {((c.clausulaAmount - c.marketValue) / c.marketValue * 100).toFixed(0)}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      {c.trendData ? <TrendBadge tendencia={c.trendData.tendencia} aceleracionEstado={c.trendData.aceleracionEstado} /> : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                    </td>
-                    <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{c.points}</td>
-                    <td className="px-4 py-2 text-center">
-                      {c.isLocked ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
-                          <Shield className="w-3 h-3" /> {getClauseTimeRemaining(c.unlockTime)}
-                        </span>
-                      ) : c.isMine ? (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">Tu jugador</span>
-                      ) : (
-                        <button onClick={(e) => { e.stopPropagation(); handlePay(c); }} className="text-xs font-medium text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
-                          Pagar
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px]">{c.ownerName}</td>
+        <>
+          {/* Desktop table */}
+          <Card className="hidden md:block">
+            <Card.Content className="p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-left">
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 w-12"></th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Jugador</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Pos</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Cláusula</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Valor</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Gap</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Tendencia</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-right">Puntos</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400 text-center">Estado</th>
+                    <th className="px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Manager</th>
                   </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {filtered.map((c, i) => (
+                    <tr key={i} onClick={() => setSelectedPlayer({ id: c.playerId, images: c.playerImage ? { transparent: { '256x256': c.playerImage } } : undefined })} className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${c.isLocked ? 'opacity-60' : ''}`}>
+                      <td className="px-4 py-2">
+                        {c.playerImage ? (
+                          <img src={c.playerImage} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <span className="text-xs text-gray-500">{c.playerName.charAt(0)}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="font-medium text-gray-900 dark:text-white truncate max-w-[180px]">{c.playerName}</div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                          {c.teamBadge && <img src={c.teamBadge} alt="" className="w-4 h-4 object-contain" />}
+                          <span className="truncate">{c.teamName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${POS_COLORS[c.positionId] || ''}`}>{c.position}</span>
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold text-yellow-600 dark:text-yellow-400 tabular-nums">{formatMoney(c.clausulaAmount)}</td>
+                      <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{formatMoney(c.marketValue)}</td>
+                      <td className="px-4 py-2 text-right text-xs tabular-nums">
+                        {c.marketValue > 0 ? (
+                          <span className={`font-medium ${((c.clausulaAmount - c.marketValue) / c.marketValue) > 0.1 ? 'text-red-500' : 'text-green-500'}`}>
+                            {((c.clausulaAmount - c.marketValue) / c.marketValue * 100).toFixed(0)}%
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {c.trendData ? <TrendBadge tendencia={c.trendData.tendencia} aceleracionEstado={c.trendData.aceleracionEstado} /> : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{c.points}</td>
+                      <td className="px-4 py-2 text-center">
+                        {c.isLocked ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                            <Shield className="w-3 h-3" /> {getClauseTimeRemaining(c.unlockTime)}
+                          </span>
+                        ) : c.isMine ? (
+                          <span className="text-xs text-gray-400 dark:text-gray-500">Tu jugador</span>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); handlePay(c); }} className="text-xs font-medium text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
+                            Pagar
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px]">{c.ownerName}</td>
+                    </tr>
                 ))}
               </tbody>
             </table>
           </Card.Content>
         </Card>
+
+        {/* Mobile cards */}
+        <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {filtered.map((c, i) => (
+            <div key={i} onClick={() => setSelectedPlayer({ id: c.playerId, images: c.playerImage ? { transparent: { '256x256': c.playerImage } } : undefined })}
+              className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3 text-left hover:shadow-md transition-all cursor-pointer ${c.isLocked ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3">
+                {c.playerImage ? (
+                  <img src={c.playerImage} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs text-gray-500">{c.playerName.charAt(0)}</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-gray-900 dark:text-white truncate">{c.playerName}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${POS_COLORS[c.positionId] || ''}`}>{c.position}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {c.teamBadge && <img src={c.teamBadge} alt="" className="w-3 h-3 rounded-full object-contain" />}
+                    <span className="text-[10px] text-gray-500 truncate">{c.teamName}</span>
+                    {c.trendData && <TrendBadge tendencia={c.trendData.tendencia} aceleracionEstado={c.trendData.aceleracionEstado} />}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xs font-bold text-yellow-600 dark:text-yellow-400">{formatMoney(c.clausulaAmount)}</div>
+                  <div className="text-[10px] text-gray-500">{formatMoney(c.marketValue)}</div>
+                  {c.marketValue > 0 && (
+                    <div className={`text-[10px] font-medium ${((c.clausulaAmount - c.marketValue) / c.marketValue) > 0.1 ? 'text-red-500' : 'text-green-500'}`}>
+                      {((c.clausulaAmount - c.marketValue) / c.marketValue * 100).toFixed(0)}%
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-[10px] text-gray-500 truncate">{c.ownerName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400">{c.points} pts</span>
+                  {c.isLocked ? (
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400">
+                      <Shield className="w-3 h-3" /> {getClauseTimeRemaining(c.unlockTime)}
+                    </span>
+                  ) : c.isMine ? (
+                    <span className="text-[10px] text-gray-400">Tu jugador</span>
+                  ) : (
+                    <button onClick={(e) => { e.stopPropagation(); handlePay(c); }} className="text-[10px] font-medium text-green-600 hover:text-green-800 dark:text-green-400">
+                      Pagar
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {/* Pay Modal */}

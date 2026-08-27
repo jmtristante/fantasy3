@@ -54,8 +54,9 @@ export default function Rentabilidad() {
   const [soloPlantilla, setSoloPlantilla] = useState(true);
   const [visibleAmigos, setVisibleAmigos] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['rentabilidad', leagueId],
     queryFn: async ({ signal }) => {
       // First try to load from Supabase view (instant)
@@ -75,10 +76,14 @@ export default function Rentabilidad() {
   });
 
   const handleRefresh = async () => {
-    console.log('[Rent] Manual refresh triggered');
-    queryClient.removeQueries({ queryKey: ['rentabilidad', leagueId] });
-    await fetchRentabilidad(leagueId!);
-    queryClient.invalidateQueries({ queryKey: ['rentabilidad', leagueId] });
+    setRefreshing(true);
+    try {
+      await fetchRentabilidad(leagueId!);
+      queryClient.removeQueries({ queryKey: ['rentabilidad', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['rentabilidad', leagueId] });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (isLoading) {
@@ -89,7 +94,6 @@ export default function Rentabilidad() {
   }
 
   const { miembros, serieRentabilidad, debugPuntos, debugGroupByArray } = data;
-  console.log('[Rent] serieRentabilidad:', serieRentabilidad?.fechas?.length, 'amigos:', serieRentabilidad?.amigos?.length);
   const miembroActual = filtro ? miembros.find((m: any) => m.id === Number(filtro)) : null;
 
   return (
@@ -101,8 +105,8 @@ export default function Rentabilidad() {
             Cuánto rinde cada jugador frente a lo invertido en fichaje y subidas de cláusula.
           </p>
         </div>
-        <button onClick={handleRefresh} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
-          Actualizar
+        <button onClick={handleRefresh} disabled={refreshing} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50">
+          {refreshing ? 'Actualizando...' : 'Actualizar'}
         </button>
       </div>
 
@@ -271,7 +275,7 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
     let filas = member.filas || [];
     if (soloPlantilla) filas = filas.filter((f: any) => f.en_plantilla);
     if (search) { const q = search.toLowerCase(); filas = filas.filter((f: any) => f.nombre?.toLowerCase().includes(q)); }
-    return filas;
+    return [...filas].sort((a: any, b: any) => (b.rentabilidad || 0) - (a.rentabilidad || 0));
   }, [member.filas, soloPlantilla, search]);
 
   return (

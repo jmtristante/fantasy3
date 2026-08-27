@@ -2,7 +2,9 @@ import { Card } from '@heroui/react';
 import { Trophy, TrendingUp, Wallet, Star } from 'lucide-react';
 
 function formatMoney(v: number) {
-  return new Intl.NumberFormat('es-ES').format(v) + '€';
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K€`;
+  return `${v}€`;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
@@ -12,10 +14,10 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
         <div className={`p-2 rounded-lg ${color}`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
-        <p className="text-sm text-muted">{label}</p>
+        <p className="text-[11px] sm:text-sm text-muted truncate">{label}</p>
       </Card.Header>
       <Card.Content>
-        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-lg sm:text-2xl font-bold tabular-nums">{value}</p>
       </Card.Content>
     </Card>
   );

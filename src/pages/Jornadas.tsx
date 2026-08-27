@@ -145,8 +145,7 @@ export default function Jornadas() {
               )}
               <div className="flex items-center gap-2 w-full">
                 <div className="flex flex-col items-center flex-1 min-w-0">
-                  {localBadge && <img src={localBadge} alt="" className="w-8 h-8 object-contain mb-1" />}
-                  <span className="text-[10px] font-medium text-gray-900 dark:text-white truncate max-w-[80px]">{localName}</span>
+                  {localBadge && <img src={localBadge} alt="" className="w-10 h-10 object-contain" />}
                 </div>
                 <div className="flex flex-col items-center">
                   {hasData ? (
@@ -159,8 +158,7 @@ export default function Jornadas() {
                   {isLive && <span className="text-[8px] font-bold text-red-500 animate-pulse">EN VIVO</span>}
                 </div>
                 <div className="flex flex-col items-center flex-1 min-w-0">
-                  {visitorBadge && <img src={visitorBadge} alt="" className="w-8 h-8 object-contain mb-1" />}
-                  <span className="text-[10px] font-medium text-gray-900 dark:text-white truncate max-w-[80px]">{visitorName}</span>
+                  {visitorBadge && <img src={visitorBadge} alt="" className="w-10 h-10 object-contain" />}
                 </div>
               </div>
             </button>

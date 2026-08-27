@@ -289,13 +289,14 @@ export default function MiAlineacion() {
     setExpandedPositions(prev => ({ ...prev, [posId]: !prev[posId] }));
   };
 
-  const renderSlot = (player: any | null, position: string, index?: number) => {
+  const renderSlot = (player: any | null, position: string, index?: number, totalInRow?: number) => {
     const pm = player?.playerMaster || player;
     const img = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || pm?.images?.transparent?.['64x64'] || pm?.image;
     const name = pm?.nickname || pm?.name;
     const isEmpty = !player;
     const playerTeamId = playerTeamMap.get(String(pm?.id)) || '';
     const badge = teamBadgeMap.get(playerTeamId);
+    const photoSize = (totalInRow || 0) >= 5 ? 'w-11 h-11 lg:w-16 lg:h-16' : 'w-14 h-14 lg:w-20 lg:h-20';
 
     return (
       <div
@@ -313,10 +314,10 @@ export default function MiAlineacion() {
           }}
         >
           {img ? (
-            <img src={img} alt="" className="w-14 h-14 lg:w-20 lg:h-20 rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform"
+            <img src={img} alt="" className={`${photoSize} rounded-full bg-white/20 border-2 border-white/60 shadow-lg group-hover:scale-110 transition-transform`}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           ) : (
-            <div className="w-14 h-14 lg:w-20 lg:h-20 rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center">
+            <div className={`${photoSize} rounded-full bg-white/10 border-2 border-dashed border-white/40 flex items-center justify-center`}>
               <span className="text-lg text-white/50">+</span>
             </div>
           )}
@@ -391,15 +392,15 @@ export default function MiAlineacion() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-b-0 border-white rounded-b-none" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-40 h-16 border-2 border-t-0 border-white rounded-t-none" />
         </div>
-        <div className="relative space-y-6 lg:space-y-8 py-4">
-          <div className="flex justify-center gap-4 lg:gap-6">
-            {Array.from({ length: req?.strikers || 0 }).map((_, i) => renderSlot(lineup.striker[i] || null, 'striker', i))}
+        <div className="relative space-y-4 lg:space-y-6 py-4">
+          <div className="flex justify-center gap-2 sm:gap-4 lg:gap-6">
+            {Array.from({ length: req?.strikers || 0 }).map((_, i) => renderSlot(lineup.striker[i] || null, 'striker', i, req?.strikers))}
           </div>
-          <div className="flex justify-center gap-4 lg:gap-6">
-            {Array.from({ length: req?.midfielders || 0 }).map((_, i) => renderSlot(lineup.midfield[i] || null, 'midfield', i))}
+          <div className="flex justify-center gap-2 sm:gap-4 lg:gap-6">
+            {Array.from({ length: req?.midfielders || 0 }).map((_, i) => renderSlot(lineup.midfield[i] || null, 'midfield', i, req?.midfielders))}
           </div>
-          <div className="flex justify-center gap-4 lg:gap-6">
-            {Array.from({ length: req?.defenders || 0 }).map((_, i) => renderSlot(lineup.defender[i] || null, 'defender', i))}
+          <div className="flex justify-center gap-2 sm:gap-4 lg:gap-6">
+            {Array.from({ length: req?.defenders || 0 }).map((_, i) => renderSlot(lineup.defender[i] || null, 'defender', i, req?.defenders))}
           </div>
           <div className="flex justify-center">
             {renderSlot(lineup.goalkeeper || null, 'goalkeeper')}

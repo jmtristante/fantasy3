@@ -166,39 +166,38 @@ export default function Activity() {
 
       {/* Filters */}
       <Card>
-        <Card.Content className="p-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar manager o jugador..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-              />
-            </div>
+        <Card.Content className="p-4 space-y-2">
+          {/* Search - full width */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar manager o jugador..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
 
-            {/* Type filter */}
+          {/* Selects row */}
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+              className="flex-1 px-2 py-1.5 rounded-lg text-xs border border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
             >
-              <option value="all">Todos los tipos</option>
+              <option value="all">Tipo</option>
               {Object.entries(ACTIVITY_TYPES).map(([id, { label }]) => (
                 <option key={id} value={id}>{label}</option>
               ))}
             </select>
 
-            {/* User filter */}
             <select
               value={userFilter}
               onChange={(e) => setUserFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+              className="flex-1 px-2 py-1.5 rounded-lg text-xs border border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
             >
-              <option value="all">Todos los managers</option>
+              <option value="all">Manager</option>
               {Array.from(managers.entries()).map(([uid, name]) => (
                 <option key={uid} value={uid}>{name}</option>
               ))}
@@ -228,34 +227,34 @@ export default function Activity() {
                 const typeColor = TYPE_COLORS[a.activityTypeId] || 'bg-gray-100 text-gray-600';
 
                 return (
-                  <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    {/* Activity icon */}
-                    <div className={`p-2 rounded-full flex-shrink-0 ${typeColor}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-
-                    {/* Player photo */}
-                    {playerImg ? (
-                      <button
-                        onClick={() => {
-                          const id = a.playerMasterId ?? a.playerId ?? a.playerMaster?.id;
-                          if (id) {
-                            const pm = a.playerMaster || players.get(String(id)) || {};
-                            setSelectedPlayer({ id, player_master_id: id, name: pm.name, nickname: pm.nickname, images: pm.images });
-                            setIsPlayerModalOpen(true);
-                          }
-                        }}
-                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-800 shadow-sm"
-                      >
-                        <img src={playerImg} alt="" className="w-full h-full object-cover" />
-                      </button>
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-medium text-gray-500">
-                          {playerName ? playerName.charAt(0).toUpperCase() : '?'}
-                        </span>
+                  <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    {/* Player photo + Icon badge */}
+                    <div className="relative flex-shrink-0">
+                      {playerImg ? (
+                        <button
+                          onClick={() => {
+                            const id = a.playerMasterId ?? a.playerId ?? a.playerMaster?.id;
+                            if (id) {
+                              const pm = a.playerMaster || players.get(String(id)) || {};
+                              setSelectedPlayer({ id, player_master_id: id, name: pm.name, nickname: pm.nickname, images: pm.images });
+                              setIsPlayerModalOpen(true);
+                            }
+                          }}
+                          className="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-gray-800 shadow-sm"
+                        >
+                          <img src={playerImg} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-500">
+                            {playerName ? playerName.charAt(0).toUpperCase() : '?'}
+                          </span>
+                        </div>
+                      )}
+                      <div className={`absolute -top-1 -left-1 p-0.5 rounded-full ${typeColor}`}>
+                        <Icon className="w-2.5 h-2.5" />
                       </div>
-                    )}
+                    </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
@@ -281,26 +280,18 @@ export default function Activity() {
                           <span className="text-muted"> a <span className="font-medium text-gray-700 dark:text-gray-300">{sellerName}</span></span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
+                      {/* Second row: time + amount */}
+                      <div className="flex items-center justify-between mt-1">
                         <span className="text-xs text-gray-400">
                           {formatDate(a.createdAt || a.timestamp)}
                         </span>
-                        <span className="text-xs text-gray-300 dark:text-gray-600">·</span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(a.createdAt || a.timestamp).toLocaleString('es-ES', {
-                            day: 'numeric', month: 'short', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </span>
+                        {a.amount ? (
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">
+                            {formatMoney(a.amount)}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-
-                    {/* Amount */}
-                    {a.amount ? (
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white flex-shrink-0 tabular-nums">
-                        {formatMoney(a.amount)}
-                      </span>
-                    ) : null}
                   </div>
                 );
               })}
