@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Spinner } from '@heroui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { fantasyAPI } from '../services/api';
 import { useStandings, useCurrentUser } from '../hooks/useStandings';
@@ -27,6 +28,8 @@ function extractPlayers(res: any): any[] {
 export default function Dashboard() {
   const leagueId = useAuthStore((s) => s.leagueId);
   const leagueName = useAuthStore((s) => s.leagueName);
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
   const { data: standings, isLoading: loadingStandings } = useStandings();
   const currentUser = useCurrentUser(standings || []);
 
@@ -93,7 +96,6 @@ export default function Dashboard() {
   const position = currentUser?.position || 0;
   const points = currentUser?.points || currentUser?.team?.points || 0;
   const teamValue = currentUser?.teamValue || currentUser?.team?.teamValue || 0;
-  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
@@ -126,6 +128,17 @@ export default function Dashboard() {
           <LeagueStandings data={standings} />
           <UpcomingMatches />
         </div>
+      </div>
+
+      {/* Logout button - mobile only */}
+      <div className="md:hidden pt-4 pb-2">
+        <button
+          onClick={() => { logout(); navigate('/login'); }}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );

@@ -136,13 +136,6 @@ export default function Layout() {
               </RouterLink>
             );
           })}
-          <button
-            onClick={() => { logout(); navigate('/login'); }}
-            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-gray-400 dark:text-gray-500"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Salir</span>
-          </button>
         </div>
       </nav>
     </div>

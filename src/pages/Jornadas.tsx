@@ -74,8 +74,6 @@ export default function Jornadas() {
 
   const loading = loadingWeek || loadingStats || loadingCalendar;
 
-  if (loading) return <LoadingSpinner />;
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -117,12 +115,16 @@ export default function Jornadas() {
       </div>
 
       {/* Matches grid */}
+      {/* Matches */}
+      {loadingStats || loadingCalendar ? (
+        <div className="flex justify-center py-12"><LoadingSpinner /></div>
+      ) : matches.length === 0 ? (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-8 text-center text-gray-400 text-sm">
+          Sin datos para esta jornada
+        </div>
+      ) : (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {matches.length === 0 ? (
-          <div className="col-span-full bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-8 text-center text-gray-400 text-sm">
-            Sin datos para esta jornada
-          </div>
-        ) : matches.map((match: any) => {
+        {matches.map((match: any) => {
           const matchId = match.id || `${match.local?.id}-${match.visitor?.id}`;
           const localName = match.local?.shortName || match.local?.mainName || match.local?.name || 'Local';
           const visitorName = match.visitor?.shortName || match.visitor?.mainName || match.visitor?.name || 'Visitante';
@@ -165,6 +167,7 @@ export default function Jornadas() {
           );
         })}
       </div>
+      )}
 
       {/* Match detail modal */}
       {selectedMatch && (() => {

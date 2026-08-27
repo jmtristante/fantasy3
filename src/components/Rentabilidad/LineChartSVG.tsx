@@ -8,10 +8,10 @@ export default function LineChartSVG({ fechas, series, formatY = (v) => v, heigh
   const [hover, setHover] = useState(null);
   const W = 800;
   const H = height;
-  const padL = 64;
-  const padR = 16;
-  const padT = 10;
-  const padB = 24;
+  const padL = 90;
+  const padR = 30;
+  const padT = 20;
+  const padB = 40;
 
   const allVals = series.flatMap((s) => s.datos).filter((v) => v != null && Number.isFinite(v));
   const n = fechas.length;
@@ -27,7 +27,7 @@ export default function LineChartSVG({ fechas, series, formatY = (v) => v, heigh
 
   const ticks = 4;
   const yTicks = Array.from({ length: ticks + 1 }, (_, i) => yMin + ((yMax - yMin) * i) / ticks);
-  const xTickEvery = Math.ceil(n / 8);
+  const xTickEvery = Math.ceil(n / 4);
 
   const onMove = useCallback((e) => {
     const svg = svgRef.current;
@@ -61,12 +61,12 @@ export default function LineChartSVG({ fechas, series, formatY = (v) => v, heigh
           {yTicks.map((t, i) => (
             <g key={i}>
               <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />
-              <text x={padL - 6} y={y(t) + 3} textAnchor="end" fontSize="15" fontWeight="500" fill="#9ca3af">{formatY(t)}</text>
+              <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize="20" fontWeight="600" fill="#6b7280">{formatY(t)}</text>
             </g>
           ))}
           {fechas.map((f, i) =>
             i % xTickEvery === 0 ? (
-              <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="10" fill="#9ca3af">{f}</text>
+              <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fontSize="20" fontWeight="600" fill="#6b7280">{f}</text>
             ) : null
           )}
           {hover != null && (
@@ -82,8 +82,8 @@ export default function LineChartSVG({ fechas, series, formatY = (v) => v, heigh
         </svg>
         {hover != null && (
           <div
-            className="absolute top-2 left-2 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-xs shadow-lg pointer-events-none"
-            style={{ left: `${Math.min(80, (hover / Math.max(1, n - 1)) * 100)}%` }}
+            className="absolute top-2 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-xs shadow-lg pointer-events-none z-10"
+            style={{ left: `${Math.min(70, Math.max(5, (hover / Math.max(1, n - 1)) * 100))}%` }}
           >
             <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">{fechas[hover]}</div>
             {series.map((s, si) => (
