@@ -281,34 +281,30 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
   return (
     <Card>
       <Card.Header>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <Card.Title>{member.nombre}</Card.Title>
-            <div className="flex items-center gap-4 text-sm mt-1">
-              <span className="text-muted">Invertido: <strong className="text-gray-900 dark:text-white">{formatMoney(member.invertido)}</strong></span>
-              <span className="text-muted">Devuelto: <strong className="text-gray-900 dark:text-white">{formatMoney(member.devuelto)}</strong></span>
-              {member.ganado_puntos > 0 && (
-                <span className="text-muted">Puntos: <strong className="text-green-600 dark:text-green-400">+{formatMoney(member.ganado_puntos)}</strong></span>
-              )}
-              <span className={`font-bold ${member.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {member.rentabilidad >= 0 ? '+' : ''}{formatMoney(member.rentabilidad)}
-              </span>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Card.Title className="truncate">{member.nombre}</Card.Title>
+            <span className={`text-sm font-bold flex-shrink-0 ${member.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {member.rentabilidad >= 0 ? '+' : ''}{formatMoney(member.rentabilidad)}
+            </span>
           </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={soloPlantilla} onChange={(e) => setSoloPlantilla(e.target.checked)} className="rounded" />
-              Solo en plantilla
-            </label>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setSoloPlantilla(!soloPlantilla)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                soloPlantilla ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+              }`}>
+              Plantilla
+            </button>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder="Buscar jugador..." value={search} onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48" />
+              <input type="text" placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+                className="w-32 sm:w-40 pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
         </div>
       </Card.Header>
-      <Card.Content className="p-0 overflow-x-auto">
+      {/* Desktop table */}
+      <Card.Content className="p-0 overflow-x-auto hidden md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-left">
@@ -362,6 +358,44 @@ function MemberDetail({ member, search, setSearch, soloPlantilla, setSoloPlantil
           </tbody>
         </table>
       </Card.Content>
+
+      {/* Mobile cards */}
+      <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-2 px-3 pb-3">
+        {filteredFilas.map((f: any, i: number) => (
+          <button key={i} onClick={() => onPlayerClick(f)}
+            className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-stretch gap-3">
+            {f.foto ? <img src={f.foto} alt="" className="w-14 h-14 rounded-full object-cover flex-shrink-0 self-center" />
+              : <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 self-center"><span className="text-sm font-medium text-gray-500">{f.nombre?.charAt(0)}</span></div>}
+            <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-semibold text-gray-900 dark:text-white truncate">{f.nombre}</span>
+                {f.tendencia != null && <TrendBadge tendencia={f.tendencia} aceleracionEstado={f.aceleracion_estado} />}
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto flex-shrink-0 ${f.en_plantilla ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                  {f.en_plantilla ? 'Plantilla' : 'Vendido'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-[10px] mt-1">
+                <div className="text-center">
+                  <div className="font-semibold text-gray-900 dark:text-white">{formatMoney(f.valor_actual)}</div>
+                  <div className="text-gray-500">Valor</div>
+                </div>
+                <div className="text-center">
+                  <div className={`font-bold ${f.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {f.rentabilidad >= 0 ? '+' : ''}{formatMoney(f.rentabilidad)}
+                  </div>
+                  <div className="text-gray-500">Rentab.</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold text-green-600 dark:text-green-400">
+                    {f.ganado_puntos > 0 ? `+${formatMoney(f.ganado_puntos)}` : '—'}
+                  </div>
+                  <div className="text-gray-500">Puntos</div>
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
     </Card>
   );
 }

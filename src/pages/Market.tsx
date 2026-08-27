@@ -288,43 +288,21 @@ export default function Market() {
       {activeTab === 'mercado' ? (
         <>
           {/* Filters */}
-          <Card>
-        <Card.Content className="p-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar jugador o equipo..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="flex gap-1">
-              {(['all', '1', '2', '3', '4'] as const).map((pos) => (
-                <button
-                  key={pos}
-                  onClick={() => setPosFilter(pos)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    posFilter === pos
-                      ? 'bg-indigo-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {pos === 'all' ? 'Todos' : POSITIONS[pos]}
-                </button>
-              ))}
-            </div>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="filter-select">
-              <option value="price">Precio</option>
-              <option value="value">Valor</option>
-              <option value="points">Puntos</option>
-              <option value="name">Nombre</option>
-            </select>
+          <div className="flex gap-1">
+            {(['all', '1', '2', '3', '4'] as const).map((pos) => (
+              <button
+                key={pos}
+                onClick={() => setPosFilter(pos)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  posFilter === pos
+                    ? 'bg-indigo-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                }`}
+              >
+                {pos === 'all' ? 'Todos' : POSITIONS[pos]}
+              </button>
+            ))}
           </div>
-        </Card.Content>
-      </Card>
 
       {/* Cards Grid */}
       {isLoading ? (

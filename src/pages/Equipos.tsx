@@ -1,9 +1,17 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Wallet } from 'lucide-react';
+import { Wallet, X } from 'lucide-react';
 import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
+
+const POSITIONS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
+const POS_CONFIG: Record<number, { label: string; short: string; color: string; headerColor: string }> = {
+  1: { label: 'Porteros', short: 'PO', color: 'bg-yellow-500', headerColor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' },
+  2: { label: 'Defensas', short: 'DF', color: 'bg-blue-500', headerColor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
+  3: { label: 'Centrocampistas', short: 'MC', color: 'bg-green-500', headerColor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
+  4: { label: 'Delanteros', short: 'DL', color: 'bg-red-500', headerColor: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' },
+};
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
@@ -26,6 +34,19 @@ export default function Equipos() {
   const laligaUser = useAuthStore((s) => s.laligaUser);
   const [sortBy, setSortBy] = useState<SortKey>('total');
   const [sortAsc, setSortAsc] = useState(false);
+  const [selectedManager, setSelectedManager] = useState<any>(null);
+
+  const { data: selectedTeamData, isLoading: loadingTeam } = useQuery({
+    queryKey: ['teamData', leagueId, selectedManager?.id],
+    queryFn: () => fantasyAPI.getTeamData(leagueId!, String(selectedManager?.id)),
+    enabled: !!leagueId && !!selectedManager?.id,
+  });
+
+  const selectedPlayers = useMemo(() => {
+    if (!selectedTeamData) return [];
+    const data = selectedTeamData?.data || selectedTeamData;
+    return data?.players || [];
+  }, [selectedTeamData]);
 
   const { data: standings, isLoading: loadingStandings } = useQuery({
     queryKey: ['standings', leagueId],
@@ -155,7 +176,8 @@ export default function Equipos() {
           const isMe = laligaUser?.userId && String(row.uid) === String(laligaUser.userId);
           return (
             <div key={row.id}
-              className={`bg-white dark:bg-gray-900 rounded-xl border p-4 flex flex-col gap-2 ${
+              onClick={() => setSelectedManager(row)}
+              className={`bg-white dark:bg-gray-900 rounded-xl border p-4 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-all ${
                 isMe ? 'border-indigo-300 dark:border-indigo-700 ring-1 ring-indigo-200 dark:ring-indigo-800' : 'border-gray-200 dark:border-gray-800'
               }`}>
               <div className="flex items-center gap-1.5">
@@ -186,6 +208,58 @@ export default function Equipos() {
       <p className="text-[10px] text-gray-400 text-center">
         Cartera estimada a partir de 100M€ iniciales + actividad de mercado
       </p>
+
+      {/* Team players modal */}
+      {selectedManager && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => setSelectedManager(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">{selectedManager.manager}</span>
+              <button onClick={() => setSelectedManager(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-3">
+              {loadingTeam ? (
+                <div className="flex justify-center py-8"><LoadingSpinner /></div>
+              ) : selectedPlayers.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">Sin datos</div>
+              ) : (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((posId) => {
+                    const players = selectedPlayers.filter((pt: any) => pt.playerMaster?.positionId === posId);
+                    if (players.length === 0) return null;
+                    const cfg = POS_CONFIG[posId];
+                    return (
+                      <div key={posId}>
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-1 ${cfg.headerColor}`}>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${cfg.color} text-white`}>{cfg.short}</span>
+                          <span className="text-[11px] font-semibold">{cfg.label}</span>
+                          <span className="text-[10px] opacity-70 ml-auto">{players.length}</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          {players.map((pt: any) => {
+                            const pm = pt.playerMaster;
+                            if (!pm) return null;
+                            const img = pm.images?.transparent?.['256x256'] || pm.images?.transparent?.['128x128'] || null;
+                            return (
+                              <div key={pt.playerTeamId || pt.id} className="flex items-center gap-3 py-1.5 px-1">
+                                {img ? <img src={img} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                                  : <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0"><span className="text-[10px] text-gray-500">{(pm.nickname || pm.name || '?').charAt(0)}</span></div>}
+                                <span className="text-[11px] font-medium text-gray-900 dark:text-white flex-1 truncate">{pm.nickname || pm.name}</span>
+                                <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 tabular-nums">{pm.points || 0} pts</span>
+                                {pm.team?.badgeColor && <img src={pm.team.badgeColor} alt="" className="w-4 h-4 object-contain flex-shrink-0" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

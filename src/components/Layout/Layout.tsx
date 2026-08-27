@@ -94,17 +94,17 @@ export default function Layout() {
       <main className="flex-1 overflow-auto pb-16 md:pb-0">
         {/* Sub-tabs - mobile only */}
         {subTabs.length > 0 && (
-          <div className="md:hidden flex border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="md:hidden sticky top-0 z-30 flex border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-sm">
             {subTabs.map((sub) => {
               const isActive = location.pathname === sub.path;
               return (
                 <RouterLink
                   key={sub.path}
                   to={sub.path}
-                  className={`flex-1 py-2.5 text-center text-xs font-medium transition-colors ${
+                  className={`flex-1 py-3 text-center text-[11px] font-semibold tracking-wide transition-all ${
                     isActive
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-gray-500 dark:text-gray-400 border-b-2 border-transparent'
+                      ? 'text-indigo-600 dark:text-indigo-400 border-b-[3px] border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
+                      : 'text-gray-400 dark:text-gray-500 border-b-[3px] border-transparent hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 >
                   {sub.label}

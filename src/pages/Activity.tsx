@@ -180,7 +180,7 @@ export default function Activity() {
           </div>
 
           {/* Selects row */}
-          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+          <div className="flex gap-2 items-center">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}

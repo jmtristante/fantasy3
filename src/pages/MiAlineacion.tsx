@@ -445,16 +445,8 @@ export default function MiAlineacion() {
                     return (
                       <button key={ptId}
                         onClick={() => {
-                          if (inLineup) return;
-                          const posMap: Record<number, string> = { 1: 'goalkeeper', 2: 'defender', 3: 'midfield', 4: 'striker' };
-                          const posName = posMap[posId];
-                          const req2 = getFormationRequirements(selectedFormation);
-                          if (!req2) return;
-                          const count = posId === 1 ? 1 : posId === 2 ? req2.defenders : posId === 3 ? req2.midfielders : req2.strikers;
-                          const arr = posId === 1 ? [] : posId === 2 ? lineup.defender : posId === 3 ? lineup.midfield : lineup.striker;
-                          const emptyIdx = arr.findIndex((s: any, i: number) => i < count && !s);
-                          setSelectedSlot({ position: posName, index: emptyIdx >= 0 ? emptyIdx : undefined });
-                          handlePlayerSelect(pt, posName);
+                          setSelectedPlayer({ id: pm.id, player_master_id: pm.id, name: pm.name, nickname: pm.nickname, images: pm.images });
+                          setIsPlayerModalOpen(true);
                         }}
                         disabled={inLineup}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50`}>
