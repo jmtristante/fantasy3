@@ -47,6 +47,12 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
     return map;
   }, [teamsMasterData]);
 
+  const teamBadgeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    extractArray(teamsMasterData).forEach((t: any) => { if (t.badgeColor) map.set(String(t.id), t.badgeColor); });
+    return map;
+  }, [teamsMasterData]);
+
   // Fetch full player details from API
   const resolvedId = player?.player_master_id || player?.id;
   console.log('[Modal] resolvedId:', resolvedId, 'isOpen:', isOpen, 'leagueId:', useAuthStore.getState().leagueId);
@@ -126,7 +132,9 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
 
   const pos = fullPlayer.positionId;
   const image = fullPlayer.images?.transparent?.['256x256'] || fullPlayer.foto || null;
-  const teamName = fullPlayer.team?.name || fullPlayer.equipo || teamNameMap.get(String(fullPlayer.teamId)) || '';
+  const teamId = String(fullPlayer.teamId || '');
+  const teamName = fullPlayer.team?.name || fullPlayer.equipo || teamNameMap.get(teamId) || '';
+  const teamBadge = fullPlayer.team?.badgeColor || teamBadgeMap.get(teamId) || null;
   const stats = fullPlayer.playerStats || [];
 
   return (
@@ -142,10 +150,12 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg sm:text-xl font-bold truncate">{fullPlayer.nickname || fullPlayer.name}</h2>
+            <h2 className="text-lg sm:text-xl font-bold truncate flex items-center gap-2">
+              {fullPlayer.nickname || fullPlayer.name}
+              {teamBadge && <img src={teamBadge} alt="" className="w-5 h-5 object-contain flex-shrink-0" />}
+            </h2>
             <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 sm:gap-y-1 text-xs sm:text-sm text-white/80 mt-0.5 sm:mt-1">
               <span className="inline-flex items-center gap-1"><User className="w-3.5 h-3.5" />{POSITIONS[pos] || '?'}</span>
-              {teamName && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{teamName}</span>}
               {fullPlayer.lastSeasonPoints ? <span className="inline-flex items-center gap-1 hidden sm:inline-flex"><Trophy className="w-3.5 h-3.5" />T. pasada: {fullPlayer.lastSeasonPoints} pts</span> : null}
             </div>
           </div>
