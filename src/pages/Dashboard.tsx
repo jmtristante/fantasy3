@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { Spinner } from '@heroui/react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { fantasyAPI } from '../services/api';
 import { useStandings, useCurrentUser } from '../hooks/useStandings';
@@ -92,14 +93,23 @@ export default function Dashboard() {
   const position = currentUser?.position || 0;
   const points = currentUser?.points || currentUser?.team?.points || 0;
   const teamValue = currentUser?.teamValue || currentUser?.team?.teamValue || 0;
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          {leagueName || 'Dashboard'}
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona tu equipo de Fantasy</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {leagueName || 'Dashboard'}
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona tu equipo de Fantasy</p>
+        </div>
+        <button
+          onClick={() => navigate('/select-league')}
+          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+        >
+          Cambiar liga
+        </button>
       </div>
 
       <StatsCards position={position} points={points} teamValue={teamValue} cash={cash} />

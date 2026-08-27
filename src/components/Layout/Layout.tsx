@@ -3,7 +3,28 @@ import { Home, Trophy, ShoppingCart, Shield, TrendingUp, LogOut, Moon, Sun, Swor
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const menuItems = [
+// Main tabs for mobile bottom nav
+const mainTabs = [
+  { path: '/', label: 'Inicio', icon: Home },
+  { path: '/lineup', label: 'Juego', icon: Swords, children: [
+    { path: '/lineup', label: 'Alineación' },
+    { path: '/jornadas', label: 'Jornadas' },
+    { path: '/standings', label: 'Clasificación' },
+  ]},
+  { path: '/market', label: 'Mercado', icon: ShoppingCart, children: [
+    { path: '/market', label: 'Mercado' },
+    { path: '/clauses', label: 'Cláusulas' },
+    { path: '/busqueda', label: 'Buscar' },
+  ]},
+  { path: '/equipos', label: 'Datos', icon: Wallet, children: [
+    { path: '/equipos', label: 'Equipos' },
+    { path: '/activity', label: 'Movimientos' },
+    { path: '/rentabilidad', label: 'Rentabilidad' },
+  ]},
+];
+
+// Desktop sidebar items (all routes)
+const desktopItems = [
   { path: '/', label: 'Inicio', icon: Home },
   { path: '/lineup', label: 'Alineación', icon: Swords },
   { path: '/jornadas', label: 'Jornadas', icon: Calendar },
@@ -16,12 +37,24 @@ const menuItems = [
   { path: '/rentabilidad', label: 'Rentab.', icon: TrendingUp },
 ];
 
+function getActiveTab(pathname: string) {
+  for (const tab of mainTabs) {
+    if (tab.children) {
+      if (tab.children.some(c => pathname === c.path || pathname.startsWith(c.path + '/'))) return tab;
+    }
+    if (pathname === tab.path) return tab;
+  }
+  return mainTabs[0];
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
-  const leagueName = useAuthStore((s) => s.leagueName);
   const { theme, toggleTheme } = useTheme();
+
+  const activeTab = getActiveTab(location.pathname);
+  const subTabs = activeTab?.children || [];
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
@@ -29,17 +62,9 @@ export default function Layout() {
       <aside className={`hidden md:flex sidebar ${theme === 'dark' ? 'dark' : ''}`}>
         <div className={`p-5 border-b ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}>
           <h1 className="text-xl font-bold text-primary">Fantasy</h1>
-          {leagueName && (
-            <button
-              onClick={() => navigate('/select-league')}
-              className="flex items-center gap-1 text-xs text-muted hover:text-foreground mt-1.5 truncate w-full text-left transition-colors"
-            >
-              <span className="truncate">{leagueName}</span>
-            </button>
-          )}
         </div>
         <nav className="flex-1 p-2 space-y-1">
-          {menuItems.map((item) => {
+          {desktopItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <RouterLink
@@ -66,17 +91,26 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto pb-20 md:pb-0">
-        {/* Mobile header with league name */}
-        {leagueName && (
-          <div className="md:hidden px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-            <button
-              onClick={() => navigate('/select-league')}
-              className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            >
-              <span className="truncate">{leagueName}</span>
-              <span className="text-[10px]">▸</span>
-            </button>
+      <main className="flex-1 overflow-auto pb-16 md:pb-0">
+        {/* Sub-tabs - mobile only */}
+        {subTabs.length > 0 && (
+          <div className="md:hidden flex border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            {subTabs.map((sub) => {
+              const isActive = location.pathname === sub.path;
+              return (
+                <RouterLink
+                  key={sub.path}
+                  to={sub.path}
+                  className={`flex-1 py-2.5 text-center text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'text-primary border-b-2 border-primary'
+                      : 'text-gray-500 dark:text-gray-400 border-b-2 border-transparent'
+                  }`}
+                >
+                  {sub.label}
+                </RouterLink>
+              );
+            })}
           </div>
         )}
         <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -86,28 +120,28 @@ export default function Layout() {
 
       {/* Bottom nav - mobile only */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-40">
-        <div className="flex items-center overflow-x-auto scrollbar-hide py-2 px-1">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+        <div className="flex items-center justify-around py-1.5">
+          {mainTabs.map((tab) => {
+            const isActive = activeTab?.path === tab.path;
             return (
               <RouterLink
-                key={item.path}
-                to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors flex-shrink-0 ${
+                key={tab.path}
+                to={tab.path}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
                   isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
                 }`}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium whitespace-nowrap">{item.label}</span>
+                <tab.icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{tab.label}</span>
               </RouterLink>
             );
           })}
           <button
             onClick={() => { logout(); navigate('/login'); }}
-            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-400 dark:text-gray-500 flex-shrink-0"
+            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-gray-400 dark:text-gray-500"
           >
             <LogOut className="w-5 h-5" />
-            <span className="text-[10px] font-medium whitespace-nowrap">Salir</span>
+            <span className="text-[10px] font-medium">Salir</span>
           </button>
         </div>
       </nav>
