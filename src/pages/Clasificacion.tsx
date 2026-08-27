@@ -218,14 +218,15 @@ export default function Clasificacion() {
                         const players = lineupPlayers.filter((p: any) => p.positionId === posId);
                         if (players.length === 0) return null;
                         return (
-                          <div key={posId} className="flex justify-center gap-3">
+                          <div key={posId} className={`flex justify-center ${players.length >= 5 ? 'gap-1 sm:gap-2' : 'gap-2 sm:gap-3'}`}>
                             {players.map((p: any, i: number) => {
                               const pm = p.playerMaster || {};
                               const weekStat = pm.lastStats?.find((s: any) => s.weekNumber === selectedWeek);
                               const pts = weekStat?.totalPoints ?? null;
                               const img = pm.images?.transparent?.['128x128'] || pm.images?.transparent?.['256x256'] || pm.images?.transparent?.['64x64'];
+                              const photoSize = players.length >= 5 ? 'w-11 h-11' : 'w-14 h-14';
                               return (
-                                <div key={i} className="flex flex-col items-center gap-0.5 w-16">
+                                <div key={i} className={`flex flex-col items-center gap-0.5 ${players.length >= 5 ? 'w-14' : 'w-16'}`}>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -243,7 +244,7 @@ export default function Clasificacion() {
                                     <img
                                       src={img}
                                       alt=""
-                                      className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-600 shadow cursor-pointer hover:scale-110 transition-transform"
+                                      className={`${photoSize} rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-600 shadow cursor-pointer hover:scale-110 transition-transform`}
                                       onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23374151"/><text x="28" y="35" text-anchor="middle" fill="white" font-size="20">?</text></svg>'; }}
                                     />
                                     {pts !== null && (
