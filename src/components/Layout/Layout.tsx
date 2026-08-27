@@ -67,6 +67,18 @@ export default function Layout() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto pb-20 md:pb-0">
+        {/* Mobile header with league name */}
+        {leagueName && (
+          <div className="md:hidden px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <button
+              onClick={() => navigate('/select-league')}
+              className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              <span className="truncate">{leagueName}</span>
+              <span className="text-[10px]">▸</span>
+            </button>
+          </div>
+        )}
         <div className="p-4 md:p-6 max-w-7xl mx-auto">
           <Outlet />
         </div>
