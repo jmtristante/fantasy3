@@ -12,19 +12,19 @@ const headers = () => ({
 
 /**
  * Leer rentabilidad desde la vista materializada en Supabase.
- * Devuelve { miembros, lastActivityAt } o null si no hay datos.
+ * Devuelve { miembros, lastActivityAt, lastMatchday } o null si no hay datos.
  */
-export async function loadRentabilidadFromView(leagueId: string): Promise<{ miembros: any[]; serieRentabilidad: any; lastActivityAt: string | null } | null> {
+export async function loadRentabilidadFromView(leagueId: string): Promise<{ miembros: any[]; lastActivityAt: string | null; lastMatchday: number } | null> {
   if (!isSupabaseConfigured() || !SUPABASE_URL) return null;
   try {
-    // 1. Get last activity timestamp and chart data from cache
+    // 1. Get cache metadata
     const cacheRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/rentabilidad_cache?select=last_activity_at,result&league_id=eq.${leagueId}&limit=1`,
+      `${SUPABASE_URL}/rest/v1/rentabilidad_cache?select=last_activity_at,last_matchday&league_id=eq.${leagueId}&limit=1`,
       { headers: headers() }
     );
     const cacheData = await cacheRes.json();
     const lastActivityAt = cacheData?.[0]?.last_activity_at || null;
-    const serieRentabilidad = cacheData?.[0]?.result?.serieRentabilidad || { fechas: [], amigos: [] };
+    const lastMatchday = cacheData?.[0]?.last_matchday || 0;
 
     // 2. Get all players from the view
     const viewRes = await fetch(
@@ -41,7 +41,6 @@ export async function loadRentabilidadFromView(leagueId: string): Promise<{ miem
       const allPlayersRes = await fantasyAPI.getAllPlayers();
       const allPlayers = Array.isArray(allPlayersRes) ? allPlayersRes : allPlayersRes?.data || [];
       allPlayersMap = new Map(allPlayers.map((p: any) => {
-        // Normalize like old app's normalizePlayer
         const imageUrl = p.image || (p.images?.transparent?.['256x256']) || null;
         const images = p.images || (imageUrl ? { transparent: { '256x256': imageUrl } } : undefined);
         return [String(p.id), { ...p, images }];
@@ -56,7 +55,7 @@ export async function loadRentabilidadFromView(leagueId: string): Promise<{ miem
       byManager.get(mid)!.push(row);
     }
 
-    // 4. Build resumen
+    // 5. Build resumen
     const miembros = Array.from(byManager.entries()).map(([mid, players]) => {
       const invertido = players.reduce((s, p) => s + (Number(p.invertido) || 0), 0);
       const devuelto = players.reduce((s, p) => s + (Number(p.devuelto) || 0), 0);
@@ -70,12 +69,10 @@ export async function loadRentabilidadFromView(leagueId: string): Promise<{ miem
         ganado_puntos,
         rentabilidad,
         filas: players.map(p => {
-          const pm = allPlayersMap.get(String(p.player_master_id));
-          const foto = pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || null;
           return {
             player_master_id: p.player_master_id,
             nombre: p.player_name,
-            foto: pm?.images?.transparent?.['256x256'] || pm?.images?.transparent?.['128x128'] || null,
+            foto: allPlayersMap.get(String(p.player_master_id))?.images?.transparent?.['256x256'] || null,
             fichaje: Number(p.fichaje) || 0,
             ventas: Number(p.ventas) || 0,
             ganado_puntos: Number(p.ganado_puntos) || 0,
@@ -92,9 +89,28 @@ export async function loadRentabilidadFromView(leagueId: string): Promise<{ miem
       };
     }).sort((a, b) => b.rentabilidad - a.rentabilidad);
 
-    return { miembros, serieRentabilidad, lastActivityAt };
+    return { miembros, lastActivityAt, lastMatchday };
   } catch (e) {
     console.log('[RentCache] Error loading from view:', e);
+    return null;
+  }
+}
+
+/**
+ * Leer datos raw de rentabilidad_players (sin JOIN con precios).
+ * Usado por el refresco incremental para modificar datos directamente.
+ */
+export async function loadRentabilidadPlayersRaw(leagueId: string): Promise<any[] | null> {
+  if (!isSupabaseConfigured() || !SUPABASE_URL) return null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/rentabilidad_players?select=*&league_id=eq.${leagueId}`,
+      { headers: headers() }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows?.length > 0 ? rows : null;
+  } catch {
     return null;
   }
 }
@@ -151,9 +167,9 @@ export async function upsertRentabilidadPlayers(
 }
 
 /**
- * Actualizar last_activity_at en el caché.
+ * Actualizar last_activity_at y last_matchday en el caché.
  */
-export async function updateCacheTimestamp(leagueId: string, lastActivityAt: string | null, serieRentabilidad?: any): Promise<void> {
+export async function updateCacheTimestamp(leagueId: string, lastActivityAt: string | null, lastMatchday: number): Promise<void> {
   if (!isSupabaseConfigured() || !SUPABASE_URL || !SUPABASE_KEY) return;
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/rentabilidad_cache`, {
@@ -166,7 +182,7 @@ export async function updateCacheTimestamp(leagueId: string, lastActivityAt: str
         league_id: leagueId,
         calculated_at: new Date().toISOString(),
         last_activity_at: lastActivityAt,
-        result: serieRentabilidad ? { serieRentabilidad } : {},
+        last_matchday: lastMatchday,
       }),
     });
   } catch {}

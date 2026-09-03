@@ -1,14 +1,12 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, Spinner } from '@heroui/react';
 import { Search } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
-import { fetchRentabilidad } from '../services/rentabilidad';
+import { fetchRentabilidad, fetchRentabilidadIncremental } from '../services/rentabilidad';
 import { loadRentabilidadFromView } from '../services/rentabilidadCache';
-import { fantasyAPI } from '../services/api';
 import TrendBadge from '../components/Common/TrendBadge';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
-import LineChartSVG from '../components/Rentabilidad/LineChartSVG';
 
 function formatMoney(v: number) {
   if (!v) return '0€';
@@ -17,42 +15,12 @@ function formatMoney(v: number) {
 
 const FRIEND_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#db2777', '#65a30d'];
 
-// Background check: compare last_activity_at with latest activity
-let lastRefreshCheck = 0;
-async function checkAndRefreshIfNeeded(leagueId: string) {
-  const now = Date.now();
-  if (now - lastRefreshCheck < 60_000) return; // Don't check more than once per minute
-  lastRefreshCheck = now;
-  try {
-    const activity = await fantasyAPI.getLeagueActivity(leagueId, 0);
-    const items = Array.isArray(activity) ? activity : (activity as any)?.data || [];
-    if (items.length === 0) return;
-    const latestActivity = items[0]?.createdAt;
-    if (!latestActivity) return;
-    // Compare with cached timestamp
-    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-    const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    if (!SUPABASE_URL || !SUPABASE_KEY) return;
-    const cacheRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/rentabilidad_cache?select=last_activity_at&league_id=eq.${leagueId}&limit=1`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-    );
-    const cacheData = await cacheRes.json();
-    const cachedAt = cacheData?.[0]?.last_activity_at;
-    if (!cachedAt || new Date(latestActivity).getTime() > new Date(cachedAt).getTime()) {
-      console.log('[Rent] New activity detected, refreshing...');
-      // The next page load will recalculate
-    }
-  } catch {}
-}
-
 export default function Rentabilidad() {
   const leagueId = useAuthStore((s) => s.leagueId);
   const queryClient = useQueryClient();
   const [filtro, setFiltro] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [soloPlantilla, setSoloPlantilla] = useState(true);
-  const [visibleAmigos, setVisibleAmigos] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -63,11 +31,12 @@ export default function Rentabilidad() {
       const viewData = await loadRentabilidadFromView(leagueId!);
       if (viewData && viewData.miembros.length > 0) {
         console.log('[Rent] Loaded from view');
-        return { miembros: viewData.miembros, serieRentabilidad: viewData.serieRentabilidad, debugPuntos: [], debugGroupByArray: [] };
+        return { miembros: viewData.miembros };
       }
       // Fall back to full calculation
       console.log('[Rent] View empty, calculating...');
-      return fetchRentabilidad(leagueId!, signal);
+      const result = await fetchRentabilidad(leagueId!, signal);
+      return { miembros: result.miembros };
     },
     enabled: !!leagueId,
     staleTime: 5 * 60 * 1000,
@@ -78,7 +47,7 @@ export default function Rentabilidad() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetchRentabilidad(leagueId!);
+      await fetchRentabilidadIncremental(leagueId!);
       queryClient.removeQueries({ queryKey: ['rentabilidad', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['rentabilidad', leagueId] });
     } finally {
@@ -93,7 +62,7 @@ export default function Rentabilidad() {
     return <div className="text-center py-16"><p className="text-red-500">Error al calcular rentabilidad</p></div>;
   }
 
-  const { miembros, serieRentabilidad, debugPuntos, debugGroupByArray } = data;
+  const { miembros } = data;
   const miembroActual = filtro ? miembros.find((m: any) => m.id === Number(filtro)) : null;
 
   return (
@@ -110,78 +79,6 @@ export default function Rentabilidad() {
         </button>
       </div>
 
-      {/* Debug: GROUP BY amigo, jugador */}
-      {debugGroupByArray && debugGroupByArray.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-500 uppercase">
-            Debug: SELECT amigo, jugador, SUM(pts) GROUP BY amigo, jugador
-          </div>
-          <div className="max-h-[300px] overflow-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-3 py-1.5 text-left text-gray-500">Amigo</th>
-                  <th className="px-3 py-1.5 text-left text-gray-500">Jugador</th>
-                  <th className="px-3 py-1.5 text-center text-gray-500">Jornadas</th>
-                  <th className="px-3 py-1.5 text-right text-gray-500">Total pts</th>
-                  <th className="px-3 py-1.5 text-right text-gray-500">Dinero</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {debugGroupByArray.map((d: any, i: number) => (
-                  <tr key={i}>
-                    <td className="px-3 py-1 text-gray-900 dark:text-white">{d.friend}</td>
-                    <td className="px-3 py-1 text-gray-700 dark:text-gray-300">{d.player}</td>
-                    <td className="px-3 py-1 text-center text-gray-600 dark:text-gray-400">{d.weeks}j</td>
-                    <td className="px-3 py-1 text-right font-bold text-gray-900 dark:text-white">{d.totalPts}</td>
-                    <td className="px-3 py-1 text-right font-semibold text-green-600 dark:text-green-400">{formatMoney(d.totalPts * 100_000)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Debug table */}
-      {debugPuntos && debugPuntos.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-500 uppercase">
-            Debug: Puntos por amigo/jugador/jornada
-          </div>
-          <div className="max-h-[400px] overflow-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-3 py-1.5 text-left text-gray-500">Amigo</th>
-                  <th className="px-3 py-1.5 text-left text-gray-500">Jugador</th>
-                  <th className="px-3 py-1.5 text-center text-gray-500">Jornada</th>
-                  <th className="px-3 py-1.5 text-right text-gray-500">Pts</th>
-                  <th className="px-3 py-1.5 text-center text-gray-500">En plantilla</th>
-                  <th className="px-3 py-1.5 text-center text-gray-500">Compra J</th>
-                  <th className="px-3 py-1.5 text-center text-gray-500">Venta J</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {debugPuntos.filter((d: any) => d.pts !== 0).map((d: any, i: number) => (
-                  <tr key={i} className={d.owned ? 'bg-green-50 dark:bg-green-900/10' : ''}>
-                    <td className="px-3 py-1 text-gray-900 dark:text-white">{d.friend}</td>
-                    <td className="px-3 py-1 text-gray-700 dark:text-gray-300">{d.player}</td>
-                    <td className="px-3 py-1 text-center text-gray-600 dark:text-gray-400">J{d.week}</td>
-                    <td className="px-3 py-1 text-right font-semibold text-gray-900 dark:text-white">{d.pts}</td>
-                    <td className="px-3 py-1 text-center">
-                      {d.owned ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-400">✗</span>}
-                    </td>
-                    <td className="px-3 py-1 text-center text-gray-500">{d.compraWeek != null ? `J${d.compraWeek}` : '—'}</td>
-                    <td className="px-3 py-1 text-center text-gray-500">{d.ventaWeek != null ? `J${d.ventaWeek}` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Member filter buttons */}
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setFiltro(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${filtro === null ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
@@ -196,71 +93,30 @@ export default function Rentabilidad() {
 
       {/* General view */}
       {filtro === null ? (
-        <>
-          {serieRentabilidad?.fechas?.length > 0 && (() => {
-            const allVisible = visibleAmigos.size === 0;
-            const filteredSeries = serieRentabilidad.amigos
-              .map((a: any, i: number) => ({ ...a, idx: i, color: FRIEND_COLORS[i % FRIEND_COLORS.length] }))
-              .filter((a) => allVisible || visibleAmigos.has(a.idx));
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {miembros.map((m: any, i: number) => {
+            const filas = m.filas || [];
+            const topP = filas.length > 0 ? [...filas].sort((a: any, b: any) => b.rentabilidad - a.rentabilidad)[0] : null;
+            const worstP = filas.length > 0 ? [...filas].sort((a: any, b: any) => a.rentabilidad - b.rentabilidad)[0] : null;
             return (
-              <Card>
-                <Card.Header><Card.Title>Evolución patrimonio</Card.Title></Card.Header>
-                <Card.Content>
-                  <LineChartSVG
-                    fechas={serieRentabilidad.fechas}
-                    series={filteredSeries.map((a) => ({ nombre: a.nombre, datos: a.datos, color: a.color }))}
-                    formatY={(v: number) => { const abs = Math.abs(v); if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`; if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K€`; return `${v}€`; }}
-                    height={300}
-                  />
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {serieRentabilidad.amigos.map((a: any, i: number) => {
-                      const isVisible = visibleAmigos.size === 0 || visibleAmigos.has(i);
-                      return (
-                        <button key={i} onClick={() => {
-                          setVisibleAmigos((prev) => {
-                            const next = new Set(prev);
-                            if (next.size === 0) { serieRentabilidad.amigos.forEach((_: any, j: number) => next.add(j)); next.delete(i); }
-                            else if (next.has(i)) { next.delete(i); if (next.size === 0) serieRentabilidad.amigos.forEach((_: any, j: number) => next.add(j)); }
-                            else next.add(i);
-                            return next;
-                          });
-                        }} className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${isVisible ? 'opacity-100' : 'opacity-30'}`}>
-                          <span className="w-3 h-1.5 rounded" style={{ background: FRIEND_COLORS[i % FRIEND_COLORS.length] }} />
-                          <span className="text-gray-600 dark:text-gray-400">{a.nombre}</span>
-                        </button>
-                      );
-                    })}
+              <Card key={m.id}>
+                <Card.Content className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ backgroundColor: FRIEND_COLORS[i % FRIEND_COLORS.length] }}>{m.nombre?.charAt(0)}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">{m.nombre}</h3>
+                    <p className={`text-lg font-bold ${m.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {m.rentabilidad >= 0 ? '+' : ''}{formatMoney(m.rentabilidad)}
+                    </p>
+                    <div className="flex flex-col gap-0.5 mt-1 text-xs">
+                      {topP && <span className="text-green-600 dark:text-green-400">▲ {topP.nombre} ({formatMoney(topP.rentabilidad)})</span>}
+                      {worstP && worstP !== topP && <span className="text-red-500 dark:text-red-400">▼ {worstP.nombre} ({formatMoney(worstP.rentabilidad)})</span>}
+                    </div>
                   </div>
                 </Card.Content>
               </Card>
             );
-          })()}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {miembros.map((m: any, i: number) => {
-              const filas = m.filas || [];
-              const topP = filas.length > 0 ? [...filas].sort((a: any, b: any) => b.rentabilidad - a.rentabilidad)[0] : null;
-              const worstP = filas.length > 0 ? [...filas].sort((a: any, b: any) => a.rentabilidad - b.rentabilidad)[0] : null;
-              return (
-                <Card key={m.id}>
-                  <Card.Content className="p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ backgroundColor: FRIEND_COLORS[i % FRIEND_COLORS.length] }}>{m.nombre?.charAt(0)}</div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 dark:text-white truncate">{m.nombre}</h3>
-                      <p className={`text-lg font-bold ${m.rentabilidad >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {m.rentabilidad >= 0 ? '+' : ''}{formatMoney(m.rentabilidad)}
-                      </p>
-                      <div className="flex flex-col gap-0.5 mt-1 text-xs">
-                        {topP && <span className="text-green-600 dark:text-green-400">▲ {topP.nombre} ({formatMoney(topP.rentabilidad)})</span>}
-                        {worstP && worstP !== topP && <span className="text-red-500 dark:text-red-400">▼ {worstP.nombre} ({formatMoney(worstP.rentabilidad)})</span>}
-                      </div>
-                    </div>
-                  </Card.Content>
-                </Card>
-              );
-            })}
-          </div>
-        </>
+          })}
+        </div>
       ) : miembroActual ? (
         <MemberDetail member={miembroActual} search={search} setSearch={setSearch} soloPlantilla={soloPlantilla} setSoloPlantilla={setSoloPlantilla} onPlayerClick={setSelectedPlayer} />
       ) : null}

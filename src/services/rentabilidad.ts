@@ -9,7 +9,7 @@ import {
   getMapeo,
   isSupabaseConfigured,
 } from './supabaseScraping';
-import { loadRentabilidadFromView, upsertRentabilidadPlayers, updateCacheTimestamp } from './rentabilidadCache';
+import { loadRentabilidadFromView, loadRentabilidadPlayersRaw, upsertRentabilidadPlayers, updateCacheTimestamp } from './rentabilidadCache';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CMP = `/v1/competition/${import.meta.env.VITE_COMPETITION_ID || '1'}`;
@@ -864,4 +864,210 @@ function buildSerieHistorica({
   });
 
   return { fechas: diasArr.map((d) => d.label), amigos };
+}
+
+/**
+ * Refresco incremental: solo procesa actividad nueva y jornadas nuevas
+ * desde la última actualización. Mucho más rápido que fetchRentabilidad completo.
+ */
+export async function fetchRentabilidadIncremental(leagueId, signal) {
+  console.log('[Rent] Incremental refresh for league:', leagueId);
+
+  // 1. Load cached state from Supabase
+  const [rawPlayers, cacheRes] = await Promise.all([
+    loadRentabilidadPlayersRaw(leagueId),
+    (async () => {
+      if (!isSupabaseConfigured()) return null;
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      try {
+        const r = await fetch(
+          `${SUPABASE_URL}/rest/v1/rentabilidad_cache?select=last_activity_at,last_matchday&league_id=eq.${leagueId}&limit=1`,
+          { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+        );
+        const d = await r.json();
+        return d?.[0] || null;
+      } catch { return null; }
+    })(),
+  ]);
+
+  // If no cached data, fall back to full calculation
+  if (!rawPlayers || rawPlayers.length === 0) {
+    console.log('[Rent] No cached data, falling back to full calculation');
+    return fetchRentabilidad(leagueId, signal);
+  }
+
+  const lastActivityAt = cacheRes?.last_activity_at || null;
+  const lastMatchday = cacheRes?.last_matchday || 0;
+
+  // 2. Load current roster map from rentabilidad_players
+  const rosterMap = new Map();
+  for (const p of rawPlayers) {
+    const key = `${p.manager_id}:${p.player_master_id}`;
+    rosterMap.set(key, {
+      manager_id: p.manager_id,
+      manager_name: p.manager_name,
+      player_master_id: p.player_master_id,
+      player_name: p.player_name,
+      invertido: Number(p.invertido) || 0,
+      fichaje: Number(p.fichaje) || 0,
+      ventas: Number(p.ventas) || 0,
+      ganado_puntos: Number(p.ganado_puntos) || 0,
+      en_plantilla: p.en_plantilla,
+    });
+  }
+
+  // 3. Detect new activity since last_activity_at
+  const newActivity = await getAllActivity(leagueId, 25, lastActivityAt);
+  const marketActivity = newActivity.filter(a =>
+    a.activityTypeId === TIPO_VENTA ||
+    a.activityTypeId === TIPO_COMPRA_MANAGER ||
+    a.activityTypeId === TIPO_FICHAJE_MERCADO ||
+    a.activityTypeId === TIPO_CLAUSULA
+  );
+  console.log('[Rent] New market activities:', marketActivity.length);
+
+  // Group activity by day for chronological processing
+  const activityByDay = new Map();
+  for (const a of marketActivity) {
+    const day = a.createdAt ? dayStart(a.createdAt) : null;
+    if (day == null) continue;
+    const arr = activityByDay.get(day) || [];
+    arr.push(a);
+    activityByDay.set(day, arr);
+  }
+
+  // 4. Detect new matchdays
+  const currentWeekRes = await fantasyAPI.getCurrentWeek();
+  const currentWeek = currentWeekRes?.weekNumber ?? currentWeekRes?.data?.weekNumber ?? 1;
+  const newMatchdays: number[] = [];
+  for (let w = lastMatchday + 1; w <= currentWeek; w++) {
+    newMatchdays.push(w);
+  }
+  console.log('[Rent] New matchdays to process:', newMatchdays);
+
+  // Fetch stats for new matchdays
+  const matchdayStats = new Map();
+  for (const w of newMatchdays) {
+    try {
+      const stats = await fantasyAPI.getMatchStats(w);
+      const matches = Array.isArray(stats) ? stats : stats?.data || [];
+      const ptsMap = new Map();
+      for (const m of matches) {
+        for (const team of [m.local, m.visitor]) {
+          if (!team?.players) continue;
+          for (const p of team.players) {
+            const pts = p.weekPoints || 0;
+            if (pts !== 0) ptsMap.set(String(p.id), pts);
+          }
+        }
+      }
+      matchdayStats.set(w, ptsMap);
+    } catch {}
+  }
+
+  // Group matchdays by day (approximate: matchday = week * 7 days from season start)
+  const seasonStart = new Date(FECHA_INICIO_TEMPORADA).getTime();
+  const matchdayByDay = new Map();
+  for (const w of newMatchdays) {
+    const dayTs = seasonStart + w * 7 * 864e5;
+    const day = dayStart(new Date(dayTs));
+    const arr = matchdayByDay.get(day) || [];
+    arr.push(w);
+    matchdayByDay.set(day, arr);
+  }
+
+  // 5. Process all events chronologically (market movements BEFORE matchday stats)
+  const allDays = [...new Set([...activityByDay.keys(), ...matchdayByDay.keys()])].sort((a, b) => a - b);
+
+  for (const day of allDays) {
+    // Process market movements first
+    const activities = activityByDay.get(day) || [];
+    for (const a of activities) {
+      const pmId = a.playerMasterId != null ? Number(a.playerMasterId) : null;
+      if (pmId == null) continue;
+      const t = a.activityTypeId;
+      const amount = num(a.amount);
+
+      if (t === TIPO_VENTA && a.user1Id != null) {
+        const key = `${a.user1Id}:${pmId}`;
+        const existing = rosterMap.get(key) || {
+          manager_id: String(a.user1Id),
+          manager_name: '',
+          player_master_id: pmId,
+          player_name: '',
+          invertido: 0,
+          fichaje: 0,
+          ventas: 0,
+          ganado_puntos: 0,
+          en_plantilla: false,
+        };
+        existing.ventas += amount;
+        existing.en_plantilla = false;
+        rosterMap.set(key, existing);
+      } else if ((t === TIPO_COMPRA_MANAGER || t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) && a.user1Id != null) {
+        const key = `${a.user1Id}:${pmId}`;
+        const existing = rosterMap.get(key) || {
+          manager_id: String(a.user1Id),
+          manager_name: '',
+          player_master_id: pmId,
+          player_name: '',
+          invertido: 0,
+          fichaje: 0,
+          ventas: 0,
+          ganado_puntos: 0,
+          en_plantilla: false,
+        };
+        existing.invertido += amount;
+        existing.fichaje += amount;
+        existing.en_plantilla = true;
+        rosterMap.set(key, existing);
+      }
+    }
+
+    // Process matchday stats
+    const matchdays = matchdayByDay.get(day) || [];
+    for (const w of matchdays) {
+      const ptsMap = matchdayStats.get(w);
+      if (!ptsMap) continue;
+
+      for (const [key, entry] of rosterMap) {
+        if (!entry.en_plantilla) continue;
+        const pts = ptsMap.get(String(entry.player_master_id));
+        if (pts && pts > 0) {
+          entry.ganado_puntos += pts * 100_000;
+        }
+      }
+    }
+  }
+
+  // 6. Save updated data to Supabase
+  const newLastActivityAt = marketActivity.length > 0
+    ? marketActivity.reduce((latest, a) => {
+        const ts = a.createdAt || '';
+        return ts > latest ? ts : latest;
+      }, lastActivityAt || '')
+    : lastActivityAt;
+
+  const playersToSave = Array.from(rosterMap.values()).map(e => ({
+    managerId: e.manager_id,
+    managerName: e.manager_name,
+    playerName: e.player_name,
+    playerMasterId: e.player_master_id,
+    invertido: e.invertido,
+    fichaje: e.fichaje,
+    ventas: e.ventas,
+    ganado_puntos: e.ganado_puntos,
+    en_plantilla: e.en_plantilla,
+  }));
+
+  await Promise.all([
+    upsertRentabilidadPlayers(leagueId, playersToSave),
+    updateCacheTimestamp(leagueId, newLastActivityAt || null, currentWeek),
+  ]);
+
+  console.log('[Rent] Incremental refresh complete. Updated', playersToSave.length, 'players');
+
+  // Return data compatible with the page
+  return { miembros: [] };
 }
