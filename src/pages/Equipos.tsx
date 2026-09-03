@@ -4,6 +4,7 @@ import { Wallet, X } from 'lucide-react';
 import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
+import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 
 const POSITIONS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
 const POS_CONFIG: Record<number, { label: string; short: string; color: string; headerColor: string }> = {
@@ -35,6 +36,7 @@ export default function Equipos() {
   const [sortBy, setSortBy] = useState<SortKey>('total');
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedManager, setSelectedManager] = useState<any>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
   const { data: selectedTeamData, isLoading: loadingTeam } = useQuery({
     queryKey: ['teamData', leagueId, selectedManager?.id],
@@ -241,10 +243,13 @@ export default function Equipos() {
                             if (!pm) return null;
                             const img = pm.images?.transparent?.['256x256'] || pm.images?.transparent?.['128x128'] || null;
                             return (
-                              <div key={pt.playerTeamId || pt.id} className="flex items-center gap-3 py-1.5 px-1">
+                              <div key={pt.playerTeamId || pt.id}
+                                onClick={() => setSelectedPlayer({ ...pm, player_master_id: pm.id })}
+                                className="flex items-center gap-3 py-1.5 px-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors">
                                 {img ? <img src={img} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                                   : <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0"><span className="text-[10px] text-gray-500">{(pm.nickname || pm.name || '?').charAt(0)}</span></div>}
                                 <span className="text-[11px] font-medium text-gray-900 dark:text-white flex-1 truncate">{pm.nickname || pm.name}</span>
+                                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 tabular-nums">{formatCurrency(pm.marketValue || 0)}</span>
                                 <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 tabular-nums">{pm.points || 0} pts</span>
                                 {pm.team?.badgeColor && <img src={pm.team.badgeColor} alt="" className="w-4 h-4 object-contain flex-shrink-0" />}
                               </div>
@@ -260,6 +265,12 @@ export default function Equipos() {
           </div>
         </div>
       )}
+
+      <PlayerDetailModal
+        isOpen={!!selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+        player={selectedPlayer}
+      />
     </div>
   );
 }
