@@ -118,6 +118,15 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
     return { fechas: arr.map((x) => x.lbl), datos: arr.map((x) => x.valor) };
   }, [preciosRows, chartFilter]);
 
+  const dailyChanges = useMemo(() => {
+    const { datos, fechas } = filteredSeriePrecios;
+    const changes: { label: string; diff: number }[] = [];
+    for (let i = 1; i < datos.length; i++) {
+      changes.push({ label: fechas[i], diff: datos[i] - datos[i - 1] });
+    }
+    return changes;
+  }, [filteredSeriePrecios]);
+
   // Get full player data from API
   const fullPlayer = useMemo(() => {
     if (!player) return null;
@@ -288,12 +297,29 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
               {filteredSeriePrecios.fechas.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">Sin datos de evolución</div>
               ) : (
-                <LineChartSVG
-                  fechas={filteredSeriePrecios.fechas}
-                  series={[{ nombre: fullPlayer.nickname || fullPlayer.name, datos: filteredSeriePrecios.datos, color: '#4F46E5' }]}
-                  formatY={(v: number) => { const abs = Math.abs(v); if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`; if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K€`; return `${v}€`; }}
-                  height={380}
-                />
+                <>
+                  <LineChartSVG
+                    fechas={filteredSeriePrecios.fechas}
+                    series={[{ nombre: fullPlayer.nickname || fullPlayer.name, datos: filteredSeriePrecios.datos, color: '#4F46E5' }]}
+                    formatY={(v: number) => { const abs = Math.abs(v); if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`; if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K€`; return `${v}€`; }}
+                    height={380}
+                  />
+                  {dailyChanges.length > 0 && (
+                    <div className="mt-2">
+                      <h4 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Variación diaria</h4>
+                      <div className="flex gap-1 overflow-x-auto pb-1">
+                        {[...dailyChanges].reverse().map((c, i) => (
+                          <div key={i} className={`flex flex-col items-center min-w-[48px] px-1.5 py-1 rounded-lg ${c.diff > 0 ? 'bg-green-50 dark:bg-green-900/20' : c.diff < 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                            <span className="text-[9px] text-gray-500">{c.label}</span>
+                            <span className={`text-[10px] font-bold tabular-nums ${c.diff > 0 ? 'text-green-600 dark:text-green-400' : c.diff < 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-500'}`}>
+                              {c.diff > 0 ? '+' : ''}{formatMoney(c.diff)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
