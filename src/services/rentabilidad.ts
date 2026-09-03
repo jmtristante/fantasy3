@@ -592,17 +592,7 @@ export async function fetchRentabilidad(leagueId, signal) {
     })
     .sort((a, b) => b.rentabilidad - a.rentabilidad);
 
-  const serieRentabilidad = buildSerieHistorica({
-    miembros,
-    detalle,
-    map,
-    activity,
-    preciosPorDia,
-    latestPrices,
-    inicioIso,
-  });
-
-  // Build debug table: exact same data as standings - fetch lineup per team per week
+  // Compute ganado_puntos: fetch lineup per team per week to get per-player matchday points
   const debugPuntos: any[] = [];
   try {
     const currentWeekRes2 = await fantasyAPI.getCurrentWeek();
@@ -630,9 +620,6 @@ export async function fetchRentabilidad(leagueId, signal) {
                 playerId: Number(pm.id),
                 week: w,
                 pts,
-                owned: true,
-                compraWeek: null,
-                ventaWeek: null,
               });
             }
           }
@@ -642,30 +629,20 @@ export async function fetchRentabilidad(leagueId, signal) {
     }
   } catch {}
 
-  // GROUP BY amigo, jugador (by ID) → sum(pts)
-  const debugGroupBy = new Map<string, { friend: string; friendMid: number; player: string; playerId: number; totalPts: number; weeks: number }>();
+  // Aggregate points by (manager, player)
+  const ganadoPtsMap = new Map<string, number>();
   for (const d of debugPuntos) {
     if (d.pts === 0) continue;
     const key = `${d.friendMid}:${d.playerId}`;
-    const existing = debugGroupBy.get(key);
-    if (existing) {
-      existing.totalPts += d.pts;
-      existing.weeks += 1;
-    } else {
-      debugGroupBy.set(key, { friend: d.friend, friendMid: d.friendMid, player: d.player, playerId: d.playerId, totalPts: d.pts, weeks: 1 });
-    }
+    ganadoPtsMap.set(key, (ganadoPtsMap.get(key) || 0) + d.pts);
   }
-  const debugGroupByArray = Array.from(debugGroupBy.values()).sort((a, b) => b.totalPts - a.totalPts);
-
-  // Build lookup map: mid:playerId → totalPts (only positive)
-  const ganadoPtsMap = new Map<string, number>();
   for (const d of debugGroupByArray) {
     if (d.totalPts > 0) {
       ganadoPtsMap.set(`${d.friendMid}:${d.playerId}`, d.totalPts);
     }
   }
 
-  // Apply ganado_puntos from debugGroupBy to resumen AND porKey stubs
+  // Apply ganado_puntos from matchday stats to resumen AND porKey stubs
   const PUNTO_VALOR2 = 100_000;
   for (const r of resumen) {
     let total = 0;
@@ -673,7 +650,6 @@ export async function fetchRentabilidad(leagueId, signal) {
       const pts = ganadoPtsMap.get(`${r.id}:${f.player_master_id}`) || 0;
       f.ganado_puntos = pts * PUNTO_VALOR2;
       total += f.ganado_puntos;
-      // Also update the porKey stub so it gets saved to the table
       const k = `${r.id}:${f.player_master_id}`;
       const s = porKey.get(k);
       if (s) s.ganado_puntos = f.ganado_puntos;
@@ -683,12 +659,9 @@ export async function fetchRentabilidad(leagueId, signal) {
 
   const result = {
     miembros: resumen,
-    serieRentabilidad,
     supabaseOk,
     preciosDiarios,
     ligaInicio: inicioIso,
-    debugPuntos,
-    debugGroupByArray,
   };
 
   // Save to rentabilidad_players table - ALL players from porKey (current + sold)
@@ -715,155 +688,15 @@ export async function fetchRentabilidad(leagueId, signal) {
     console.log('[Rent] Saving', playersToSave.length, 'players to rentabilidad_players');
     await upsertRentabilidadPlayers(leagueId, playersToSave);
     const lastActivityAt = activity.length > 0 ? activity[0]?.createdAt || null : null;
-    await updateCacheTimestamp(leagueId, lastActivityAt, serieRentabilidad);
+    const currentWeekRes3 = await fantasyAPI.getCurrentWeek();
+    const currentWeek3 = currentWeekRes3?.weekNumber ?? currentWeekRes3?.data?.weekNumber ?? 1;
+    await updateCacheTimestamp(leagueId, lastActivityAt, currentWeek3);
     console.log('[Rent] Saved successfully');
   } catch (e) {
     console.log('[Rent] Save error:', e);
   }
 
   return result;
-}
-
-function buildSerieHistorica({
-  miembros,
-  detalle,
-  map,
-  activity,
-  preciosPorDia,
-  latestPrices,
-  inicioIso,
-}) {
-  const toDayStart = (f) => dayStart(f) ?? 0;
-
-  const holds = new Map();
-  const setHold = (m, j, kind, ts) => {
-    if (m == null || j == null) return;
-    const k = `${Number(m)}:${j}`;
-    let h = holds.get(k);
-    if (!h) {
-      h = { j, acq: Infinity, sale: null };
-      holds.set(k, h);
-    }
-    if (kind === 'acq') {
-      if (ts < h.acq) h.acq = ts;
-    } else if (h.sale == null || ts > h.sale) {
-      h.sale = ts;
-    }
-  };
-
-  // Drafts / plantilla actual sin movimiento: alta = fecha de entrada del manager.
-  for (const d of detalle) {
-    for (const p of d.players) {
-      const j = map.get(Number(p.playerMasterId));
-      if (j == null) continue;
-      const k = `${d.mid}:${j}`;
-      if (!holds.has(k)) {
-        setHold(d.mid, j, 'acq', toDayStart(d.joinTs ?? inicioIso));
-      }
-    }
-  }
-
-  for (const a of activity) {
-    const j = a.playerMasterId != null ? map.get(Number(a.playerMasterId)) : null;
-    if (j == null) continue;
-    const ts = toDayStart(a.createdAt);
-    const t = a.activityTypeId;
-    if (t === TIPO_VENTA) {
-      if (a.user1Id != null) setHold(a.user1Id, j, 'sale', ts);
-    } else if (t === TIPO_COMPRA_MANAGER) {
-      if (a.user1Id != null) setHold(a.user1Id, j, 'acq', ts);
-      if (a.user2Id != null) setHold(a.user2Id, j, 'sale', ts);
-    } else if (t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) {
-      if (a.user1Id != null) setHold(a.user1Id, j, 'acq', ts);
-    }
-  }
-
-  // Cash: 100M + compras/ventas + premios de jornada.
-  const presu = new Map();
-  for (const m of miembros) presu.set(Number(m.userId ?? m.id), PRESUPUESTO_INICIAL);
-  const importesPorMiembro = new Map();
-  for (const a of activity) {
-    const t = a.activityTypeId;
-    const amount = num(a.amount);
-    const agregar = (midRaw, delta) => {
-      if (midRaw == null) return;
-      const mid = Number(midRaw);
-      const arr = importesPorMiembro.get(mid) ?? [];
-      arr.push({ ts: toDayStart(a.createdAt), imp: delta });
-      importesPorMiembro.set(mid, arr);
-    };
-    if (t === TIPO_VENTA) agregar(a.user1Id, amount);
-    else if (t === TIPO_COMPRA_MANAGER) {
-      agregar(a.user1Id, -amount);
-      agregar(a.user2Id, amount);
-    } else if (t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) {
-      agregar(a.user1Id, -amount);
-    } else if (t === TIPO_PREMIO) {
-      agregar(a.user1Id, amount);
-    }
-  }
-  for (const arr of importesPorMiembro.values()) arr.sort((a, b) => a.ts - b.ts);
-
-  const inicioDia = toDayStart(inicioIso);
-  const finDia = toDayStart(new Date());
-  const diasArr = [];
-  for (let t = inicioDia; t <= finDia; t += 864e5) {
-    const d = new Date(t);
-    diasArr.push({
-      ts: t,
-      label: `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`,
-    });
-  }
-  if (diasArr.length === 0) {
-    const d = new Date();
-    diasArr.push({
-      ts: finDia,
-      label: `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`,
-    });
-  }
-
-  const hoyLabel = diasArr[diasArr.length - 1].label;
-
-  const amigos = miembros.map((m) => {
-    const mid = Number(m.userId ?? m.id);
-    const ultimo = new Map();
-    const importes = importesPorMiembro.get(mid) ?? [];
-    const holdsM = [...holds.entries()]
-      .filter(([k]) => k.startsWith(`${mid}:`))
-      .map(([, h]) => h);
-    const datos = diasArr.map((dia) => {
-      let cash = presu.get(mid) ?? PRESUPUESTO_INICIAL;
-      for (const it of importes) {
-        if (it.ts <= dia.ts) cash += it.imp;
-        else break;
-      }
-      let equipo = 0;
-      for (const h of holdsM) {
-        if (dia.ts < h.acq) continue;
-        if (h.sale != null && dia.ts >= h.sale) continue;
-        const pm = preciosPorDia.get(h.j);
-        let p = null;
-        if (dia.label === hoyLabel) {
-          p = latestPrices.get(h.j)?.valor ?? (pm && pm.length ? pm[pm.length - 1].valor : 0);
-        } else if (pm) {
-          let cand = null;
-          for (const x of pm) {
-            if (x.ts <= dia.ts) cand = x.valor;
-            else break;
-          }
-          p = cand ?? ultimo.get(h.j) ?? 0;
-        } else {
-          p = ultimo.get(h.j) ?? 0;
-        }
-        ultimo.set(h.j, p);
-        equipo += p;
-      }
-      return cash + equipo;
-    });
-    return { id: mid, nombre: m.manager || m.name || 'Amigo', datos };
-  });
-
-  return { fechas: diasArr.map((d) => d.label), amigos };
 }
 
 /**
