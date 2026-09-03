@@ -27,6 +27,7 @@ interface AuthState {
   leagueId: string | null;
   leagueName: string | null;
   inflightRefresh: Promise<string | null> | null;
+  refreshIntervalId: ReturnType<typeof setInterval> | null;
 
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
@@ -36,6 +37,8 @@ interface AuthState {
   setLeague: (id: string, name: string) => void;
   getBearerToken: () => string | null;
   refreshToken: () => Promise<string | null>;
+  startPeriodicRefresh: () => void;
+  stopPeriodicRefresh: () => void;
 }
 
 async function fetchLaligaProfile(token: string): Promise<LaLigaUser | null> {
@@ -65,6 +68,14 @@ async function fetchLaligaProfile(token: string): Promise<LaLigaUser | null> {
   }
 }
 
+function isTokenExpired(tokens: LaLigaTokens | null): boolean {
+  if (!tokens || !tokens.expires_on) return true;
+  const expirationTime = tokens.expires_on * 1000;
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  return (expirationTime - now) < fiveMinutes;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -76,6 +87,7 @@ export const useAuthStore = create<AuthState>()(
       laligaUser: null,
       leagueId: null,
       leagueName: null,
+      refreshIntervalId: null,
 
       login: async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -92,6 +104,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        get().stopPeriodicRefresh();
         await supabase.auth.signOut();
         set({
           user: null,
@@ -142,6 +155,8 @@ export const useAuthStore = create<AuthState>()(
         } catch (e) {
           console.error('[Auth] Error loading LaLiga session:', e);
         }
+
+        get().startPeriodicRefresh();
       },
 
       loginLaLiga: async (tokens) => {
@@ -175,9 +190,12 @@ export const useAuthStore = create<AuthState>()(
           laligaAuthenticated: true,
           laligaUser,
         });
+
+        get().startPeriodicRefresh();
       },
 
       logoutLaLiga: async () => {
+        get().stopPeriodicRefresh();
         await deleteLaLigaSession();
         set({
           laligaTokens: null,
@@ -196,6 +214,9 @@ export const useAuthStore = create<AuthState>()(
         const { laligaTokens } = get();
         if (!laligaTokens) return null;
         if (laligaTokens.expires_on && laligaTokens.expires_on < Date.now() / 1000) {
+          if (laligaTokens.refresh_token) {
+            get().refreshToken().catch(() => {});
+          }
           return null;
         }
         return laligaTokens.access_token;
@@ -279,6 +300,33 @@ export const useAuthStore = create<AuthState>()(
           return result;
         } finally {
           set({ inflightRefresh: null });
+        }
+      },
+
+      startPeriodicRefresh: () => {
+        const state = get();
+        if (state.refreshIntervalId) clearInterval(state.refreshIntervalId);
+        if (!state.laligaAuthenticated || !state.laligaTokens?.refresh_token) return;
+
+        const intervalId = setInterval(async () => {
+          try {
+            const currentState = get();
+            if (currentState.laligaAuthenticated && currentState.laligaTokens?.refresh_token) {
+              if (isTokenExpired(currentState.laligaTokens)) {
+                await get().refreshToken();
+              }
+            }
+          } catch {}
+        }, 5 * 60 * 60 * 1000);
+
+        set({ refreshIntervalId: intervalId });
+      },
+
+      stopPeriodicRefresh: () => {
+        const state = get();
+        if (state.refreshIntervalId) {
+          clearInterval(state.refreshIntervalId);
+          set({ refreshIntervalId: null });
         }
       },
     }),
