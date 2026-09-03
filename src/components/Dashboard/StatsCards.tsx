@@ -2,8 +2,10 @@ import { Card } from '@heroui/react';
 import { Trophy, TrendingUp, Wallet, Star } from 'lucide-react';
 
 function formatMoney(v: number) {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K€`;
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M€`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K€`;
   return `${v}€`;
 }
 
