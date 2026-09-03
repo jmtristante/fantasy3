@@ -43,7 +43,8 @@ function processLineup(raw: any): any[] {
 export default function Clasificacion() {
   const leagueId = useAuthStore((s) => s.leagueId);
   const user = useAuthStore((s) => s.user);
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'total' | 'week'>('total');
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
@@ -55,7 +56,7 @@ export default function Clasificacion() {
   });
   const currentWeek = currentWeekData?.weekNumber ?? currentWeekData?.data?.weekNumber ?? 1;
 
-  if (selectedWeek === null && currentWeek) {
+  if (selectedWeek === 0 && currentWeek) {
     setSelectedWeek(currentWeek);
   }
 
@@ -69,7 +70,7 @@ export default function Clasificacion() {
   const { data: weeklyData, isLoading: loadingWeekly } = useQuery({
     queryKey: ['weeklyRanking', leagueId, selectedWeek],
     queryFn: () => fantasyAPI.getLeagueRankingByWeek(leagueId!, selectedWeek!),
-    enabled: !!leagueId && selectedWeek != null,
+    enabled: !!leagueId && selectedWeek > 0,
     staleTime: 60_000,
   });
 
@@ -97,7 +98,7 @@ export default function Clasificacion() {
       weeklyMap.set(teamId, entry);
     });
 
-    return overall.map((entry: any) => {
+    const entries = overall.map((entry: any) => {
       const teamId = String(entry.id || entry.team?.id);
       const weekEntry = weeklyMap.get(teamId);
       return {
@@ -108,13 +109,18 @@ export default function Clasificacion() {
         totalPoints: entry.points || entry.team?.teamPoints || 0,
         teamValue: entry.teamValue || entry.team?.teamValue || 0,
       };
-    }).sort((a: any, b: any) => (a.position || 999) - (b.position || 999));
-  }, [overallStandings, weeklyData]);
+    });
+
+    if (viewMode === 'week') {
+      return entries.sort((a: any, b: any) => (b.weekPoints || 0) - (a.weekPoints || 0));
+    }
+    return entries.sort((a: any, b: any) => (a.position || 999) - (b.position || 999));
+  }, [overallStandings, weeklyData, viewMode]);
 
   const { data: lineupData, isLoading: loadingLineup } = useQuery({
     queryKey: ['lineup', expandedTeam, selectedWeek],
     queryFn: () => fantasyAPI.getTeamLineup(expandedTeam!, selectedWeek!),
-    enabled: !!expandedTeam && selectedWeek != null,
+    enabled: !!expandedTeam && selectedWeek > 0,
     staleTime: 60_000,
   });
 
@@ -133,12 +139,22 @@ export default function Clasificacion() {
 
       {/* Jornada selector */}
       <div className="flex gap-1 overflow-x-auto pb-2">
+        <button
+          onClick={() => { setViewMode('total'); setExpandedTeam(null); }}
+          className={`min-w-[50px] px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            viewMode === 'total'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+          }`}
+        >
+          Total
+        </button>
         {Array.from({ length: currentWeek }, (_, i) => i + 1).map((week) => (
           <button
             key={week}
-            onClick={() => { setSelectedWeek(week); setExpandedTeam(null); }}
+            onClick={() => { setSelectedWeek(week); setViewMode('week'); setExpandedTeam(null); }}
             className={`min-w-[40px] px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              selectedWeek === week
+              viewMode === 'week' && selectedWeek === week
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
@@ -154,44 +170,51 @@ export default function Clasificacion() {
         <div className="grid grid-cols-[40px_1fr_70px_70px] md:grid-cols-[50px_1fr_80px_90px_100px] gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">
           <span>Pos</span>
           <span>Manager</span>
-          <span className="text-center">Pts J{selectedWeek}</span>
+          {viewMode === 'week' && <span className="text-center">Pts J{selectedWeek}</span>}
           <span className="text-center">Total</span>
           <span className="text-right hidden md:block">Valor</span>
         </div>
 
         {/* Rows */}
-        {standings.map((entry: any) => {
+        {standings.map((entry: any, index: number) => {
           const isMe = user?.id === entry.team?.manager?.id || user?.id === entry.userId;
           const isExpanded = expandedTeam === entry.teamId;
           const teamName = teamNameMap.get(entry.teamId) || entry.name;
+          const rowCols = viewMode === 'week'
+            ? 'grid-cols-[40px_1fr_70px_70px] md:grid-cols-[50px_1fr_80px_90px_100px]'
+            : 'grid-cols-[40px_1fr_70px] md:grid-cols-[50px_1fr_90px_100px]';
 
           return (
             <div key={entry.teamId}>
               <button
-                onClick={() => setExpandedTeam(isExpanded ? null : entry.teamId)}
-                className={`w-full grid grid-cols-[40px_1fr_70px_70px] md:grid-cols-[50px_1fr_80px_90px_100px] gap-2 px-3 py-2.5 text-left items-center transition-colors ${
+                onClick={() => {
+                  if (viewMode === 'week') {
+                    setExpandedTeam(isExpanded ? null : entry.teamId);
+                  }
+                }}
+                className={`w-full grid ${rowCols} gap-2 px-3 py-2.5 text-left items-center transition-colors ${
                   isMe
                     ? 'bg-indigo-50 dark:bg-indigo-900/10 hover:bg-indigo-100 dark:hover:bg-indigo-900/20'
                     : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                } ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                } ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/50' : ''} ${viewMode === 'total' ? '' : 'cursor-pointer'}`}
               >
                 <span className="text-xs font-bold text-gray-900 dark:text-white">
-                  {entry.position || '—'}
+                  {viewMode === 'week' ? index + 1 : (entry.position || '—')}
                 </span>
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className={`text-xs font-medium truncate ${isMe ? 'text-indigo-700 dark:text-indigo-400' : 'text-gray-900 dark:text-white'}`}>
                     {entry.manager}
                   </span>
                   {isMe && <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-1 rounded">Tú</span>}
-                  {isExpanded ? (
-                    <ChevronUp className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  {viewMode === 'week' && (
+                    isExpanded ? <ChevronUp className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   )}
                 </div>
-                <span className={`text-xs font-bold text-center ${entry.weekPoints > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
-                  {entry.weekPoints}
-                </span>
+                {viewMode === 'week' && (
+                  <span className={`text-xs font-bold text-center ${entry.weekPoints > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                    {entry.weekPoints}
+                  </span>
+                )}
                 <span className="text-xs font-semibold text-center text-gray-900 dark:text-white">
                   {entry.totalPoints}
                 </span>
