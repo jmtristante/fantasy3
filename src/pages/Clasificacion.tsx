@@ -5,19 +5,12 @@ import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
+import { formatCurrencyCompactCompact } from '../utils/helpers';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
   if (res?.data && Array.isArray(res.data)) return res.data;
   return [];
-}
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K`;
-  return `${value}`;
 }
 
 const POSITION_MAP: Record<number, string> = {
@@ -203,7 +196,7 @@ export default function Clasificacion() {
                   {entry.totalPoints}
                 </span>
                 <span className="text-[10px] text-gray-500 text-right hidden md:block">
-                  {formatCurrency(entry.teamValue)}
+                  {formatCurrencyCompact(entry.teamValue)}
                 </span>
               </button>
 

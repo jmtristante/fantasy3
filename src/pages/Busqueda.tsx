@@ -8,19 +8,12 @@ import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
 import TrendBadge from '../components/Common/TrendBadge';
+import { formatCurrencyCompact } from '../utils/helpers';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
   if (res?.data && Array.isArray(res.data)) return res.data;
   return [];
-}
-
-function formatMoney(v: number): string {
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M€`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K€`;
-  return `${v}€`;
 }
 
 const POSITIONS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
@@ -214,7 +207,7 @@ export default function Busqueda() {
             </div>
             <div className="text-right flex-shrink-0">
               <div className="text-xs font-bold text-gray-900 dark:text-white">{p.points || 0} pts</div>
-              <div className="text-[9px] text-gray-500">{formatMoney(p.marketValue || 0)}</div>
+              <div className="text-[9px] text-gray-500">{formatCurrencyCompact(p.marketValue || 0)}</div>
               {p.probabilidad != null && (
                 <div className={`text-[9px] font-semibold ${p.probabilidad >= 80 ? 'text-green-600' : p.probabilidad >= 60 ? 'text-yellow-600' : 'text-gray-500'}`}>
                   {p.probabilidad}%

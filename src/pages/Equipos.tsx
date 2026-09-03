@@ -5,6 +5,7 @@ import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
+import { formatCurrencyCompactCompact } from '../utils/helpers';
 
 const POSITIONS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
 const POS_CONFIG: Record<number, { label: string; short: string; color: string; headerColor: string }> = {
@@ -18,14 +19,6 @@ function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;
   if (res?.data && Array.isArray(res.data)) return res.data;
   return [];
-}
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M€`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K€`;
-  return `${value}€`;
 }
 
 const PRESUPUESTO_INICIAL = 100_000_000;
@@ -193,15 +186,15 @@ export default function Equipos() {
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <span className="text-[10px] text-gray-500">Valor</span>
-                  <span className="text-[11px] font-semibold text-gray-900 dark:text-white tabular-nums">{formatCurrency(row.valor)}</span>
+                  <span className="text-[11px] font-semibold text-gray-900 dark:text-white tabular-nums">{formatCurrencyCompact(row.valor)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[10px] text-gray-500">Cartera</span>
-                  <span className="text-[11px] text-gray-600 dark:text-gray-400 tabular-nums">{formatCurrency(row.cartera)}</span>
+                  <span className="text-[11px] text-gray-600 dark:text-gray-400 tabular-nums">{formatCurrencyCompact(row.cartera)}</span>
                 </div>
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-1 flex justify-between">
                   <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300">Total</span>
-                  <span className="text-xs font-bold text-gray-900 dark:text-white tabular-nums">{formatCurrency(row.total)}</span>
+                  <span className="text-xs font-bold text-gray-900 dark:text-white tabular-nums">{formatCurrencyCompact(row.total)}</span>
                 </div>
               </div>
             </div>
@@ -251,7 +244,7 @@ export default function Equipos() {
                                 {img ? <img src={img} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                                   : <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0"><span className="text-[10px] text-gray-500">{(pm.nickname || pm.name || '?').charAt(0)}</span></div>}
                                 <span className="text-[11px] font-medium text-gray-900 dark:text-white flex-1 truncate">{pm.nickname || pm.name}</span>
-                                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 tabular-nums">{formatCurrency(pm.marketValue || 0)}</span>
+                                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 tabular-nums">{formatCurrencyCompact(pm.marketValue || 0)}</span>
                                 <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 tabular-nums">{pm.points || 0} pts</span>
                                 {pm.team?.badgeColor && <img src={pm.team.badgeColor} alt="" className="w-4 h-4 object-contain flex-shrink-0" />}
                               </div>

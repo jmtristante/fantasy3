@@ -1,13 +1,6 @@
 import { Card } from '@heroui/react';
 import { Trophy, TrendingUp, Wallet, Star } from 'lucide-react';
-
-function formatMoney(v: number) {
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M€`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}K€`;
-  return `${v}€`;
-}
+import { formatCurrencyCompact } from '../../utils/helpers';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
   return (
@@ -37,8 +30,8 @@ export default function StatsCards({ position, points, teamValue, cash }: StatsC
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard icon={Trophy} label="Posición" value={`#${position}`} color="bg-yellow-500" />
       <StatCard icon={Star} label="Puntos" value={String(points)} color="bg-blue-500" />
-      <StatCard icon={TrendingUp} label="Valor equipo" value={formatMoney(teamValue)} color="bg-green-500" />
-      <StatCard icon={Wallet} label="Cartera" value={formatMoney(cash)} color="bg-purple-500" />
+      <StatCard icon={TrendingUp} label="Valor equipo" value={formatCurrencyCompact(teamValue)} color="bg-green-500" />
+      <StatCard icon={Wallet} label="Cartera" value={formatCurrencyCompact(cash)} color="bg-purple-500" />
     </div>
   );
 }
