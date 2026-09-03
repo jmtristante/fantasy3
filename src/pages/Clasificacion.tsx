@@ -5,7 +5,7 @@ import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
-import { formatCurrencyCompactCompact } from '../utils/helpers';
+import { formatCurrencyCompact } from '../utils/helpers';
 
 function extractArray(res: any): any[] {
   if (Array.isArray(res)) return res;

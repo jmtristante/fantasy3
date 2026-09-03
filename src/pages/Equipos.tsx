@@ -5,7 +5,7 @@ import { fantasyAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import PlayerDetailModal from '../components/Common/PlayerDetailModal';
-import { formatCurrencyCompactCompact } from '../utils/helpers';
+import { formatCurrencyCompact } from '../utils/helpers';
 
 const POSITIONS: Record<number, string> = { 1: 'PO', 2: 'DF', 3: 'MC', 4: 'DL' };
 const POS_CONFIG: Record<number, { label: string; short: string; color: string; headerColor: string }> = {
