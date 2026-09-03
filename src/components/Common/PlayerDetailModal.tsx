@@ -195,7 +195,7 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: PlayerDet
                   <p className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">Valor</p>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 sm:p-3 text-center">
-                  <p className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">{fullPlayer.averagePoints || 0}</p>
+                  <p className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">{Math.round(fullPlayer.averagePoints || 0)}</p>
                   <p className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">Promedio</p>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 sm:p-3 text-center">
