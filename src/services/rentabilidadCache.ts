@@ -183,6 +183,7 @@ export async function updateCacheTimestamp(leagueId: string, lastActivityAt: str
         calculated_at: new Date().toISOString(),
         last_activity_at: lastActivityAt,
         last_matchday: lastMatchday,
+        result: {},
       }),
     });
   } catch {}
