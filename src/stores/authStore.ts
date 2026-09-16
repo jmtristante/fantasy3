@@ -138,6 +138,7 @@ export const useAuthStore = create<AuthState>()(
           if (laligaSession) {
             const expiresOn = laligaSession.expires_on || Math.floor(Date.now() / 1000) + 3600;
             if (expiresOn > Date.now() / 1000) {
+              // Token still valid
               const laligaUser = laligaSession.laliga_user_id
                 ? { userId: laligaSession.laliga_user_id, username: laligaSession.laliga_username || '', name: laligaSession.laliga_username || '' }
                 : await fetchLaligaProfile(laligaSession.access_token);
@@ -146,8 +147,22 @@ export const useAuthStore = create<AuthState>()(
                 laligaAuthenticated: true,
                 laligaUser,
               });
+            } else if (laligaSession.refresh_token) {
+              // Token expired but we have a refresh token → try to refresh
+              console.log('[Auth] Token expired, attempting refresh...');
+              set({
+                laligaTokens: { ...laligaSession, expires_on: expiresOn },
+                laligaAuthenticated: true,
+              });
+              try {
+                await get().refreshToken();
+                console.log('[Auth] Token refreshed successfully');
+              } catch (e) {
+                console.error('[Auth] Token refresh failed:', e);
+                set({ laligaAuthenticated: false, laligaTokens: null });
+              }
             } else {
-              console.log('[Auth] LaLiga session expired');
+              console.log('[Auth] LaLiga session expired, no refresh token');
             }
           } else {
             console.log('[Auth] No LaLiga session found in Supabase');
