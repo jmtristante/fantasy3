@@ -69,9 +69,12 @@ export async function loadRentabilidadFromView(leagueId: string): Promise<{ miem
         ganado_puntos,
         rentabilidad,
         filas: players.map(p => {
+          const stint = Number(p.stint) || 1;
+          const baseName = p.player_name || '';
           return {
             player_master_id: p.player_master_id,
-            nombre: p.player_name,
+            stint,
+            nombre: stint > 1 ? `${baseName} (#${stint})` : baseName,
             foto: allPlayersMap.get(String(p.player_master_id))?.images?.transparent?.['256x256'] || null,
             fichaje: Number(p.fichaje) || 0,
             ventas: Number(p.ventas) || 0,
@@ -117,7 +120,7 @@ export async function loadRentabilidadPlayersRaw(leagueId: string): Promise<any[
 
 /**
  * Guardar/actualizar filas en rentabilidad_players.
- * upsert por (league_id, manager_id, player_master_id).
+ * upsert por (league_id, manager_id, player_master_id, stint).
  */
 export async function upsertRentabilidadPlayers(
   leagueId: string,
@@ -126,6 +129,7 @@ export async function upsertRentabilidadPlayers(
     managerName: string;
     playerName: string;
     playerMasterId: number;
+    stint: number;
     invertido: number;
     fichaje: number;
     ventas: number;
@@ -141,6 +145,7 @@ export async function upsertRentabilidadPlayers(
       manager_name: p.managerName,
       player_master_id: p.playerMasterId,
       player_name: p.playerName,
+      stint: p.stint,
       invertido: p.invertido,
       fichaje: p.fichaje,
       ventas: p.ventas,

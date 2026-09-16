@@ -393,12 +393,53 @@ export async function fetchRentabilidad(leagueId, signal) {
     });
   }
 
-  // Movimientos de actividad -> stubs por (miembro, jugador LaLiga).
-  const porKey = new Map();
-  const keyDe = (m, pmId) => `${m}:${pmId}`;
-  const stub = (m, pmId) => {
-    const k = keyDe(m, pmId);
-    let s = porKey.get(k);
+  // Movimientos de actividad -> stubs por (miembro, jugador LaLiga, stint).
+  // Pre-computar períodos de propiedad para asignar stints.
+  const ownershipPeriods = new Map<string, { start: number; end: number | null }[]>();
+  const sortedMarket = activity
+    .filter(a => [TIPO_VENTA, TIPO_COMPRA_MANAGER, TIPO_FICHAJE_MERCADO, TIPO_CLAUSULA].includes(a.activityTypeId))
+    .filter(a => a.playerMasterId != null)
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+
+  for (const a of sortedMarket) {
+    const pmId = Number(a.playerMasterId);
+    const ts = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const t = a.activityTypeId;
+
+    if (t === TIPO_VENTA && a.user1Id != null) {
+      const k = `${a.user1Id}:${pmId}`;
+      const periods = ownershipPeriods.get(k) || [];
+      const open = periods.find(p => p.end === null);
+      if (open) open.end = ts;
+    } else if ((t === TIPO_COMPRA_MANAGER || t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) && a.user1Id != null) {
+      const k = `${a.user1Id}:${pmId}`;
+      const periods = ownershipPeriods.get(k) || [];
+      periods.push({ start: ts, end: null });
+      ownershipPeriods.set(k, periods);
+    }
+  }
+
+  // Asignar número de stint a cada timestamp
+  const getStint = (managerId, pmId, ts) => {
+    const k = `${managerId}:${pmId}`;
+    const periods = ownershipPeriods.get(k) || [];
+    for (let i = 0; i < periods.length; i++) {
+      const p = periods[i];
+      if (ts >= p.start && (p.end === null || ts <= p.end)) return i + 1;
+    }
+    return 1;
+  };
+
+  // Mapa de stints: "manager:player" -> Map<stint, Stub>
+  const porKey = new Map<string, Map<number, any>>();
+  const stub = (m, pmId, stint = 1) => {
+    const mk = `${m}:${pmId}`;
+    let byStint = porKey.get(mk);
+    if (!byStint) {
+      byStint = new Map();
+      porKey.set(mk, byStint);
+    }
+    let s = byStint.get(stint);
     if (!s) {
       s = {
         invertido: 0,
@@ -411,7 +452,7 @@ export async function fetchRentabilidad(leagueId, signal) {
         compraWeek: null,
         ventaWeek: null,
       };
-      porKey.set(k, s);
+      byStint.set(stint, s);
     }
     return s;
   };
@@ -434,7 +475,8 @@ export async function fetchRentabilidad(leagueId, signal) {
 
     if (t === TIPO_VENTA) {
       if (a.user1Id != null) {
-        const s = stub(a.user1Id, pmId);
+        const stint = ts != null ? getStint(a.user1Id, pmId, ts) : 1;
+        const s = stub(a.user1Id, pmId, stint);
         s.devuelto += amount;
         s.ventas += amount;
         if (week != null) s.ventaWeek = week;
@@ -442,14 +484,16 @@ export async function fetchRentabilidad(leagueId, signal) {
     } else if (t === TIPO_COMPRA_MANAGER) {
       // Traspaso / compra: user1 paga, user2 (si hay) cobra.
       if (a.user1Id != null) {
-        const s = stub(a.user1Id, pmId);
+        const stint = ts != null ? getStint(a.user1Id, pmId, ts) : 1;
+        const s = stub(a.user1Id, pmId, stint);
         s.invertido += amount;
         s.fichaje += amount;
         s.tuvoCompra = true;
         if (week != null && (s.compraWeek == null || week < s.compraWeek)) s.compraWeek = week;
       }
       if (a.user2Id != null) {
-        const s = stub(a.user2Id, pmId);
+        const stint = ts != null ? getStint(a.user2Id, pmId, ts) : 1;
+        const s = stub(a.user2Id, pmId, stint);
         s.devuelto += amount;
         s.ventas += amount;
         if (week != null) s.ventaWeek = week;
@@ -457,7 +501,8 @@ export async function fetchRentabilidad(leagueId, signal) {
     } else if (t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) {
       // 31 fichaje mercado · 32 compra por cláusula → coste de adquisición (fichaje).
       if (a.user1Id != null) {
-        const s = stub(a.user1Id, pmId);
+        const stint = ts != null ? getStint(a.user1Id, pmId, ts) : 1;
+        const s = stub(a.user1Id, pmId, stint);
         s.invertido += amount;
         s.fichaje += amount;
         s.tuvoCompra = true;
@@ -471,15 +516,15 @@ export async function fetchRentabilidad(leagueId, signal) {
   // 1) Los que siguen en plantilla (están en detalle).
   for (const d of detalle) {
     for (const p of d.players) {
-      const k = keyDe(d.mid, p.playerMasterId);
-      const existing = porKey.get(k);
+      const mk = `${d.mid}:${p.playerMasterId}`;
+      const byStint = porKey.get(mk);
+      const existing = byStint?.get(1);
       if (existing?.tuvoCompra) continue;
-      const s = stub(d.mid, p.playerMasterId);
+      const s = stub(d.mid, p.playerMasterId, 1);
       if (s.fichaje > 0 || s.tuvoCompra) continue;
-      // Si no tiene compra conocida pero está en plantilla, asumir desde jornada 1
       if (s.compraWeek == null) s.compraWeek = 1;
       const j = s.jugador_id;
-      const mv = mvMap.get(k) ?? 0;
+      const mv = mvMap.get(mk) ?? 0;
       const fechaDraft = d.joinTs || inicioIso;
       const entrada =
         (j != null ? valorEntrada(j, fechaDraft) : null) ??
@@ -489,77 +534,90 @@ export async function fetchRentabilidad(leagueId, signal) {
       s.fichaje += entrada;
     }
   }
-  // 2) Los que ya fueron vendidos (aparecen en actividad pero no en plantilla
-  //    actual): necesitan su fichaje al precio del día de entrada del manager.
+  // 2) Los que ya fueron vendidos
   const joinTsByMid = new Map();
   for (const d of detalle) joinTsByMid.set(d.mid, d.joinTs || inicioIso);
-  for (const [k, s] of porKey.entries()) {
-    if (s.tuvoCompra || s.fichaje > 0) continue;
-    const [mRaw] = k.split(':');
-    const mid = Number(mRaw);
-    const j = s.jugador_id;
-    const mv = mvMap.get(k) ?? 0;
-    const fechaDraft = joinTsByMid.get(mid) || inicioIso;
-    const entrada =
-      (j != null ? valorEntrada(j, fechaDraft) : null) ??
-      latestPrices.get(j)?.valor ??
-      mv;
-    s.invertido += entrada;
-    s.fichaje += entrada;
-    // Si no tiene compra conocida, asumir desde jornada 1
-    if (s.compraWeek == null) s.compraWeek = 1;
+  for (const [mk, byStint] of porKey.entries()) {
+    for (const [stintNum, s] of byStint) {
+      if (s.tuvoCompra || s.fichaje > 0) continue;
+      const [mRaw] = mk.split(':');
+      const mid = Number(mRaw);
+      const j = s.jugador_id;
+      const mv = mvMap.get(mk) ?? 0;
+      const fechaDraft = joinTsByMid.get(mid) || inicioIso;
+      const entrada =
+        (j != null ? valorEntrada(j, fechaDraft) : null) ??
+        latestPrices.get(j)?.valor ??
+        mv;
+      s.invertido += entrada;
+      s.fichaje += entrada;
+      if (s.compraWeek == null) s.compraWeek = 1;
+    }
   }
 
   // Valor actual de los que siguen en plantilla (devuelto) + puntos ganados (100k por punto).
-  const owners = new Set();
+  const owners = new Set<string>();
   const PUNTO_VALOR = 100_000;
   for (const d of detalle) {
     for (const p of d.players) {
-      const k = keyDe(d.mid, p.playerMasterId);
+      const mk = `${d.mid}:${p.playerMasterId}`;
+      // Find the latest stint (highest stint number) for this player
+      const byStint = porKey.get(mk);
+      let latestStint = 1;
+      if (byStint) {
+        for (const sn of byStint.keys()) {
+          if (sn > latestStint) latestStint = sn;
+        }
+      }
+      const k = `${mk}:${latestStint}`;
       owners.add(k);
-      const s = stub(d.mid, p.playerMasterId);
+      const s = stub(d.mid, p.playerMasterId, latestStint);
       const j = s.jugador_id;
-      const mv = mvMap.get(k) ?? null;
+      const mv = mvMap.get(mk) ?? null;
       const valor = (j != null ? latestPrices.get(j)?.valor : null) ?? mv;
       if (valor != null) s.devuelto += valor;
     }
   }
 
   const filasPorMiembro = new Map();
-  for (const [k, s] of porKey.entries()) {
-    const [mRaw, pmRaw] = k.split(':');
+  for (const [mk, byStint] of porKey.entries()) {
+    const [mRaw, pmRaw] = mk.split(':');
     const mid = Number(mRaw);
     const pmId = Number(pmRaw);
-    const j = s.jugador_id;
-    const info = j != null ? jugadorInfo.get(j) : null;
-    const enPlantilla = owners.has(k);
-    const lp = j != null ? latestPrices.get(j) : null;
-    const mv = mvMap.get(k) ?? null;
-    const laLiga = allPlayersMap.get(String(pmId));
-    const fila = {
-      jugador_id: j,
-      player_master_id: pmId,
-      nombre: info?.nombre ?? laLiga?.nickname ?? laLiga?.name ?? 'Jugador',
-      equipo: info?.equipo ?? laLiga?.team?.name ?? null,
-      foto: info?.foto ?? null,
-      escudo: info?.escudo ?? null,
-      fichaje: s.fichaje,
-      subidas: s.subidas,
-      ventas: s.ventas,
-      valor_actual: enPlantilla ? (lp?.valor ?? mv) : null,
-      diferencia_diaria: lp?.diferencia ?? null,
-      diferencia_pct_diaria: lp?.diferencia_pct ?? null,
-      tendencia: lp?.tendencia ?? null,
-      aceleracion_estado: lp?.aceleracion_estado ?? null,
-      en_plantilla: enPlantilla,
-      invertido: s.invertido,
-      devuelto: s.devuelto,
-      ganado_puntos: s.ganado_puntos || 0,
-      rentabilidad: s.devuelto - s.invertido,
-    };
-    const lista = filasPorMiembro.get(mid) ?? [];
-    lista.push(fila);
-    filasPorMiembro.set(mid, lista);
+    for (const [stintNum, s] of byStint) {
+      const j = s.jugador_id;
+      const info = j != null ? jugadorInfo.get(j) : null;
+      const k = `${mk}:${stintNum}`;
+      const enPlantilla = owners.has(k);
+      const lp = j != null ? latestPrices.get(j) : null;
+      const mv = mvMap.get(mk) ?? null;
+      const laLiga = allPlayersMap.get(String(pmId));
+      const fila = {
+        stint: stintNum,
+        jugador_id: j,
+        player_master_id: pmId,
+        nombre: info?.nombre ?? laLiga?.nickname ?? laLiga?.name ?? 'Jugador',
+        equipo: info?.equipo ?? laLiga?.team?.name ?? null,
+        foto: info?.foto ?? null,
+        escudo: info?.escudo ?? null,
+        fichaje: s.fichaje,
+        subidas: s.subidas,
+        ventas: s.ventas,
+        valor_actual: enPlantilla ? (lp?.valor ?? mv) : null,
+        diferencia_diaria: lp?.diferencia ?? null,
+        diferencia_pct_diaria: lp?.diferencia_pct ?? null,
+        tendencia: lp?.tendencia ?? null,
+        aceleracion_estado: lp?.aceleracion_estado ?? null,
+        en_plantilla: enPlantilla,
+        invertido: s.invertido,
+        devuelto: s.devuelto,
+        ganado_puntos: s.ganado_puntos || 0,
+        rentabilidad: s.devuelto - s.invertido,
+      };
+      const lista = filasPorMiembro.get(mid) ?? [];
+      lista.push(fila);
+      filasPorMiembro.set(mid, lista);
+    }
   }
 
   const resumen = miembros
@@ -636,11 +694,6 @@ export async function fetchRentabilidad(leagueId, signal) {
     const key = `${d.friendMid}:${d.playerId}`;
     ganadoPtsMap.set(key, (ganadoPtsMap.get(key) || 0) + d.pts);
   }
-  for (const d of debugGroupByArray) {
-    if (d.totalPts > 0) {
-      ganadoPtsMap.set(`${d.friendMid}:${d.playerId}`, d.totalPts);
-    }
-  }
 
   // Apply ganado_puntos from matchday stats to resumen AND porKey stubs
   const PUNTO_VALOR2 = 100_000;
@@ -650,8 +703,9 @@ export async function fetchRentabilidad(leagueId, signal) {
       const pts = ganadoPtsMap.get(`${r.id}:${f.player_master_id}`) || 0;
       f.ganado_puntos = pts * PUNTO_VALOR2;
       total += f.ganado_puntos;
-      const k = `${r.id}:${f.player_master_id}`;
-      const s = porKey.get(k);
+      const mk = `${r.id}:${f.player_master_id}`;
+      const byStint = porKey.get(mk);
+      const s = byStint?.get(f.stint);
       if (s) s.ganado_puntos = f.ganado_puntos;
     }
     r.ganado_puntos = total;
@@ -667,23 +721,26 @@ export async function fetchRentabilidad(leagueId, signal) {
   // Save to rentabilidad_players table - ALL players from porKey (current + sold)
   try {
     const playersToSave: any[] = [];
-    for (const [k, s] of porKey.entries()) {
-      const [mRaw, pmRaw] = k.split(':');
+    for (const [mk, byStint] of porKey.entries()) {
+      const [mRaw, pmRaw] = mk.split(':');
       const mid = Number(mRaw);
       const pmId = Number(pmRaw);
       const managerName = resumen.find((r: any) => r.id === mid)?.nombre || String(mid);
       const laLiga = allPlayersMap.get(String(pmId));
-      playersToSave.push({
-        managerId: String(mid),
-        managerName,
-        playerName: laLiga?.nickname || laLiga?.name || `#${pmId}`,
-        playerMasterId: pmId,
-        invertido: s.invertido,
-        fichaje: s.fichaje,
-        ventas: s.ventas,
-        ganado_puntos: s.ganado_puntos || 0,
-        en_plantilla: owners.has(k),
-      });
+      for (const [stintNum, s] of byStint) {
+        playersToSave.push({
+          managerId: String(mid),
+          managerName,
+          playerName: laLiga?.nickname || laLiga?.name || `#${pmId}`,
+          playerMasterId: pmId,
+          stint: stintNum,
+          invertido: s.invertido,
+          fichaje: s.fichaje,
+          ventas: s.ventas,
+          ganado_puntos: s.ganado_puntos || 0,
+          en_plantilla: owners.has(`${mk}:${stintNum}`),
+        });
+      }
     }
     console.log('[Rent] Saving', playersToSave.length, 'players to rentabilidad_players');
     await upsertRentabilidadPlayers(leagueId, playersToSave);
@@ -733,15 +790,23 @@ export async function fetchRentabilidadIncremental(leagueId, signal) {
   const lastActivityAt = cacheRes?.last_activity_at || null;
   const lastMatchday = cacheRes?.last_matchday || 0;
 
-  // 2. Load current roster map from rentabilidad_players
-  const rosterMap = new Map();
+  // 2. Load current roster from rentabilidad_players (now with stint column)
+  // Structure: "manager:player" -> Map<stint, entry>
+  const rosterMap = new Map<string, Map<number, any>>();
   for (const p of rawPlayers) {
-    const key = `${p.manager_id}:${p.player_master_id}`;
-    rosterMap.set(key, {
+    const mk = `${p.manager_id}:${p.player_master_id}`;
+    let byStint = rosterMap.get(mk);
+    if (!byStint) {
+      byStint = new Map();
+      rosterMap.set(mk, byStint);
+    }
+    const stint = Number(p.stint) || 1;
+    byStint.set(stint, {
       manager_id: p.manager_id,
       manager_name: p.manager_name,
       player_master_id: p.player_master_id,
       player_name: p.player_name,
+      stint,
       invertido: Number(p.invertido) || 0,
       fichaje: Number(p.fichaje) || 0,
       ventas: Number(p.ventas) || 0,
@@ -749,6 +814,22 @@ export async function fetchRentabilidadIncremental(leagueId, signal) {
       en_plantilla: p.en_plantilla,
     });
   }
+
+  // Helper: get the current (active) stint for a manager:player pair
+  const getCurrentStint = (mk: string): number => {
+    const byStint = rosterMap.get(mk);
+    if (!byStint) return 1;
+    let maxStint = 1;
+    for (const [sn, entry] of byStint) {
+      if (entry.en_plantilla && sn > maxStint) maxStint = sn;
+    }
+    // If no active stint found, return the next stint number
+    let maxAll = 0;
+    for (const sn of byStint.keys()) {
+      if (sn > maxAll) maxAll = sn;
+    }
+    return maxAll > 0 ? maxAll + 1 : 1;
+  };
 
   // 3. Detect new activity since last_activity_at
   const newActivity = await getAllActivity(leagueId, 25, lastActivityAt);
@@ -823,38 +904,53 @@ export async function fetchRentabilidadIncremental(leagueId, signal) {
       const amount = num(a.amount);
 
       if (t === TIPO_VENTA && a.user1Id != null) {
-        const key = `${a.user1Id}:${pmId}`;
-        const existing = rosterMap.get(key) || {
-          manager_id: String(a.user1Id),
-          manager_name: '',
-          player_master_id: pmId,
-          player_name: '',
-          invertido: 0,
-          fichaje: 0,
-          ventas: 0,
-          ganado_puntos: 0,
-          en_plantilla: false,
-        };
-        existing.ventas += amount;
-        existing.en_plantilla = false;
-        rosterMap.set(key, existing);
+        const mk = `${a.user1Id}:${pmId}`;
+        // Find the active stint and mark as sold
+        const byStint = rosterMap.get(mk);
+        if (byStint) {
+          for (const [, entry] of byStint) {
+            if (entry.en_plantilla) {
+              entry.ventas += amount;
+              entry.en_plantilla = false;
+              break;
+            }
+          }
+        }
       } else if ((t === TIPO_COMPRA_MANAGER || t === TIPO_FICHAJE_MERCADO || t === TIPO_CLAUSULA) && a.user1Id != null) {
-        const key = `${a.user1Id}:${pmId}`;
-        const existing = rosterMap.get(key) || {
-          manager_id: String(a.user1Id),
-          manager_name: '',
-          player_master_id: pmId,
-          player_name: '',
-          invertido: 0,
-          fichaje: 0,
-          ventas: 0,
-          ganado_puntos: 0,
-          en_plantilla: false,
-        };
-        existing.invertido += amount;
-        existing.fichaje += amount;
-        existing.en_plantilla = true;
-        rosterMap.set(key, existing);
+        const mk = `${a.user1Id}:${pmId}`;
+        const byStint = rosterMap.get(mk);
+        // Check if there's an active stint already
+        let activeStint = 0;
+        if (byStint) {
+          for (const [sn, entry] of byStint) {
+            if (entry.en_plantilla) { activeStint = sn; break; }
+          }
+        }
+        if (activeStint > 0) {
+          // Re-buy: increment existing stint's invertido
+          const entry = byStint!.get(activeStint)!;
+          entry.invertido += amount;
+          entry.fichaje += amount;
+          entry.en_plantilla = true;
+        } else {
+          // New stint
+          const newStint = getCurrentStint(mk);
+          if (!byStint) {
+            rosterMap.set(mk, new Map());
+          }
+          rosterMap.get(mk)!.set(newStint, {
+            manager_id: String(a.user1Id),
+            manager_name: '',
+            player_master_id: pmId,
+            player_name: '',
+            stint: newStint,
+            invertido: amount,
+            fichaje: amount,
+            ventas: 0,
+            ganado_puntos: 0,
+            en_plantilla: true,
+          });
+        }
       }
     }
 
@@ -864,11 +960,13 @@ export async function fetchRentabilidadIncremental(leagueId, signal) {
       const ptsMap = matchdayStats.get(w);
       if (!ptsMap) continue;
 
-      for (const [key, entry] of rosterMap) {
-        if (!entry.en_plantilla) continue;
-        const pts = ptsMap.get(String(entry.player_master_id));
-        if (pts && pts > 0) {
-          entry.ganado_puntos += pts * 100_000;
+      for (const [, byStint] of rosterMap) {
+        for (const [, entry] of byStint) {
+          if (!entry.en_plantilla) continue;
+          const pts = ptsMap.get(String(entry.player_master_id));
+          if (pts && pts > 0) {
+            entry.ganado_puntos += pts * 100_000;
+          }
         }
       }
     }
@@ -882,17 +980,23 @@ export async function fetchRentabilidadIncremental(leagueId, signal) {
       }, lastActivityAt || '')
     : lastActivityAt;
 
-  const playersToSave = Array.from(rosterMap.values()).map(e => ({
-    managerId: e.manager_id,
-    managerName: e.manager_name,
-    playerName: e.player_name,
-    playerMasterId: e.player_master_id,
-    invertido: e.invertido,
-    fichaje: e.fichaje,
-    ventas: e.ventas,
-    ganado_puntos: e.ganado_puntos,
-    en_plantilla: e.en_plantilla,
-  }));
+  const playersToSave: any[] = [];
+  for (const [, byStint] of rosterMap) {
+    for (const [, entry] of byStint) {
+      playersToSave.push({
+        managerId: entry.manager_id,
+        managerName: entry.manager_name,
+        playerName: entry.player_name,
+        playerMasterId: entry.player_master_id,
+        stint: entry.stint,
+        invertido: entry.invertido,
+        fichaje: entry.fichaje,
+        ventas: entry.ventas,
+        ganado_puntos: entry.ganado_puntos,
+        en_plantilla: entry.en_plantilla,
+      });
+    }
+  }
 
   await Promise.all([
     upsertRentabilidadPlayers(leagueId, playersToSave),
